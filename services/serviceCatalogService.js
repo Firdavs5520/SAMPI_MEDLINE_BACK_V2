@@ -112,7 +112,9 @@ const updateService = async ({ serviceId, name, price, priceOptions, user }) => 
     throw new AppError("LOR can only update lor services", 403);
   }
 
-  assertServiceOwnership(service, user);
+  if (user.role === "lor") {
+    assertServiceOwnership(service, user);
+  }
 
   const hasName = typeof name === "string";
   const hasPrice = price !== undefined && price !== null && price !== "";
@@ -188,7 +190,9 @@ const deleteService = async ({ serviceId, user }) => {
     throw new AppError("LOR can only delete lor services", 403);
   }
 
-  assertServiceOwnership(service, user);
+  if (user.role === "lor") {
+    assertServiceOwnership(service, user);
+  }
 
   const usageCount = await ServiceUsage.countDocuments({ serviceId: service._id });
   if (usageCount > 0) {
