@@ -12,19 +12,23 @@ function NurseMedicinesPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
   const [newMedicineName, setNewMedicineName] = useState("");
   const [newMedicinePrice, setNewMedicinePrice] = useState("");
+  const [editingMedicineId, setEditingMedicineId] = useState("");
+  const [editForm, setEditForm] = useState({ name: "", price: "" });
   const [medicines, setMedicines] = useState([]);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   const nurseMedicines = useMemo(() => {
-    const userId = String(user?.id || "");
+    const userId = String(user?.id || user?._id || "");
     return medicines.filter((medicine) => {
       if (!medicine.createdBy?.userId) return false;
       return String(medicine.createdBy.userId) === userId;
     });
-  }, [medicines, user?.id]);
+  }, [medicines, user?.id, user?._id]);
 
   const loadMedicines = async () => {
     setLoading(true);
@@ -43,10 +47,14 @@ function NurseMedicinesPage() {
     loadMedicines();
   }, []);
 
-  const handleAddMedicine = async (e) => {
-    e.preventDefault();
+  const resetMessages = () => {
     setSuccess("");
     setError("");
+  };
+
+  const handleAddMedicine = async (e) => {
+    e.preventDefault();
+    resetMessages();
     setSaving(true);
 
     try {
@@ -68,6 +76,78 @@ function NurseMedicinesPage() {
       setError(extractErrorMessage(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleStartEdit = (medicine) => {
+    setEditingMedicineId(medicine._id);
+    setEditForm({
+      name: medicine.name || "",
+      price: medicine.price ? String(medicine.price) : ""
+    });
+    resetMessages();
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMedicineId("");
+    setEditForm({ name: "", price: "" });
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingMedicineId) return;
+
+    resetMessages();
+    setUpdating(true);
+    try {
+      const safeName = editForm.name.trim();
+      const safePrice = Number(editForm.price);
+
+      if (!safeName) {
+        throw new Error("Dori nomini kiriting.");
+      }
+      if (!Number.isFinite(safePrice) || safePrice <= 0 || safePrice >= 1000000) {
+        throw new Error("Narx > 0 va < 1,000,000 bo'lishi kerak.");
+      }
+
+      await medicineService.updateMedicine(editingMedicineId, {
+        name: safeName,
+        price: safePrice
+      });
+
+      setSuccess("Dori ma'lumoti yangilandi.");
+      handleCancelEdit();
+      await loadMedicines();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDelete = async (medicine) => {
+    if (!medicine?._id) return;
+
+    const confirmed = window.confirm(
+      `${medicine.name} dorisini o'chirmoqchimisiz? Bu amal qaytarilmaydi.`
+    );
+    if (!confirmed) return;
+
+    resetMessages();
+    setDeletingId(medicine._id);
+    try {
+      await medicineService.deleteMedicine(medicine._id);
+      setSuccess("Dori o'chirildi.");
+
+      if (editingMedicineId === medicine._id) {
+        handleCancelEdit();
+      }
+
+      await loadMedicines();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setDeletingId("");
     }
   };
 
@@ -106,6 +186,41 @@ function NurseMedicinesPage() {
         </form>
       </div>
 
+      {editingMedicineId ? (
+        <div className="card p-4">
+          <h3 className="text-base font-semibold text-slate-800">Dorini tahrirlash</h3>
+          <form
+            onSubmit={handleSaveEdit}
+            className="mt-3 grid gap-3 md:grid-cols-[1fr_180px_auto_auto]"
+          >
+            <Input
+              label="Dori nomi"
+              value={editForm.name}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+            />
+            <Input
+              label="Narxi"
+              type="number"
+              min="1"
+              value={editForm.price}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+            />
+            <Button type="submit" className="h-fit self-end" loading={updating}>
+              Saqlash
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-fit self-end"
+              onClick={handleCancelEdit}
+              disabled={updating}
+            >
+              Bekor qilish
+            </Button>
+          </form>
+        </div>
+      ) : null}
+
       <Alert type="success" message={success} />
       <Alert type="error" message={error} />
 
@@ -138,9 +253,30 @@ function NurseMedicinesPage() {
                 )
             },
             {
-              key: "createdBy",
-              label: "Qo'shgan",
-              render: (row) => row.createdBy?.name || "-"
+              key: "actions",
+              label: "Amallar",
+              render: (row) => (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() => handleStartEdit(row)}
+                    disabled={deletingId === row._id}
+                  >
+                    Tahrirlash
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    className="px-3 py-1.5 text-xs"
+                    onClick={() => handleDelete(row)}
+                    loading={deletingId === row._id}
+                  >
+                    O'chirish
+                  </Button>
+                </div>
+              )
             }
           ]}
         />

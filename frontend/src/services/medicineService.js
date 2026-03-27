@@ -11,6 +11,16 @@ const medicineService = {
     return data.data;
   },
 
+  async updateMedicine(medicineId, payload) {
+    const { data } = await api.patch(`/medicines/${medicineId}`, payload);
+    return data.data;
+  },
+
+  async deleteMedicine(medicineId) {
+    const { data } = await api.delete(`/medicines/${medicineId}`);
+    return data.data;
+  },
+
   async increaseStock(medicineId, quantity) {
     const { data } = await api.patch(`/medicines/${medicineId}/increase`, {
       quantity
