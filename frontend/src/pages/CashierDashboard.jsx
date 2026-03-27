@@ -81,7 +81,7 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const createInitialForm = (date = getTodayString(), type = "lor") => ({
+const createInitialForm = (type = "lor") => ({
   department: type,
   specialistType: type,
   specialistId: "",
@@ -90,8 +90,7 @@ const createInitialForm = (date = getTodayString(), type = "lor") => ({
   paidAmount: "",
   paymentMethod: "cash",
   patientPhone: "",
-  note: "",
-  entryDate: date
+  note: ""
 });
 
 const emptySummary = {
@@ -146,7 +145,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     search: ""
   });
   const [searchInput, setSearchInput] = useState("");
-  const [form, setForm] = useState(createInitialForm(today, lockedType || "lor"));
+  const [form, setForm] = useState(createInitialForm(lockedType || "lor"));
   const [editingEntry, setEditingEntry] = useState(null);
   const [deleteEntryTarget, setDeleteEntryTarget] = useState(null);
   const [specialistNameInput, setSpecialistNameInput] = useState("");
@@ -268,7 +267,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
 
   const resetForm = () => {
     setEditingEntry(null);
-    setForm(createInitialForm(filters.date, lockedType || form.specialistType || "lor"));
+    setForm(createInitialForm(lockedType || form.specialistType || "lor"));
   };
 
   const handleFormChange = (key, value) => {
@@ -318,8 +317,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           form.paidAmount === "" ? safeNumber(form.amount) : safeNumber(form.paidAmount),
         paymentMethod: form.paymentMethod,
         patientPhone: form.patientPhone.trim(),
-        note: form.note.trim(),
-        entryDate: form.entryDate
+        note: form.note.trim()
       };
 
       if (editingEntry?._id) {
@@ -362,8 +360,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           : safeNumber(entry.paidAmount, "").toString(),
       paymentMethod: entry.paymentMethod || "cash",
       patientPhone: entry.patientPhone || "",
-      note: entry.note || "",
-      entryDate: formatDateInput(entry.entryDate)
+      note: entry.note || ""
     });
   };
 
@@ -615,7 +612,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
         </h2>
 
         <form className="mt-4 space-y-3" onSubmit={handleSaveEntry}>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {!lockedType ? (
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
@@ -673,13 +670,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                 ))}
               </select>
             </label>
-
-            <Input
-              label="Sana"
-              type="date"
-              value={form.entryDate}
-              onChange={(e) => handleFormChange("entryDate", e.target.value)}
-            />
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

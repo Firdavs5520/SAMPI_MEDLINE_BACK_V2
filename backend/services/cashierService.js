@@ -446,7 +446,7 @@ const createEntry = async ({ payload, user }) => {
   const amount = validateAmount(payload.amount);
   const { paidAmount, debtAmount } = resolvePaidAndDebt(amount, payload.paidAmount);
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-  const { start } = getDateRange(payload.entryDate);
+  const entryDate = new Date();
 
   return CashierEntry.create({
     department,
@@ -460,7 +460,7 @@ const createEntry = async ({ payload, user }) => {
     ...(specialistData.specialistId ? { specialistId: specialistData.specialistId } : {}),
     patientPhone: String(payload.patientPhone || "").trim(),
     note: String(payload.note || "").trim(),
-    entryDate: start,
+    entryDate,
     createdBy: {
       userId: user._id,
       role: user.role,
