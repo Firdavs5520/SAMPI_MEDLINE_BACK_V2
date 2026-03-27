@@ -34,6 +34,11 @@ const medicineSchema = new mongoose.Schema(
       required: true,
       min: 0.01,
       max: 999999.99
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true
     }
   },
   {

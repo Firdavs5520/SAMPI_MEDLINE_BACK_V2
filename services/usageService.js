@@ -217,7 +217,7 @@ const useMedicine = async ({ medicineId, quantity, price, user }) => {
 
   try {
     const medicine = await Medicine.findOneAndUpdate(
-      { _id: medicineId, stock: { $gte: quantity } },
+      { _id: medicineId, stock: { $gte: quantity }, isArchived: { $ne: true } },
       { $inc: { stock: -quantity } },
       { new: true, session }
     );
@@ -427,7 +427,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
       validateQuantity(quantity);
 
       const medicine = await Medicine.findOneAndUpdate(
-        { _id: item.medicineId, stock: { $gte: quantity } },
+        { _id: item.medicineId, stock: { $gte: quantity }, isArchived: { $ne: true } },
         { $inc: { stock: -quantity } },
         { new: true, session }
       );

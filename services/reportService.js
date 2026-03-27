@@ -158,7 +158,7 @@ const getManagerOverview = async ({ period = "all" } = {}) => {
   const periodMatch = resolveRevenueMatch(safePeriod);
 
   const [inventoryMedicineTypes, nurse, lor, total] = await Promise.all([
-    Medicine.countDocuments(),
+    Medicine.countDocuments({ isArchived: { $ne: true } }),
     buildRoleOverview(periodMatch, "nurse"),
     buildRoleOverview(periodMatch, "lor"),
     buildRoleOverview(periodMatch, null)
@@ -183,7 +183,9 @@ const getMedicineUsageHistory = async () => {
 };
 
 const getCurrentStock = async () => {
-  return Medicine.find().select("name stock createdAt").sort({ name: 1 });
+  return Medicine.find({ isArchived: { $ne: true } })
+    .select("name stock createdAt")
+    .sort({ name: 1 });
 };
 
 const getMostUsedMedicines = async (limit = 10) => {

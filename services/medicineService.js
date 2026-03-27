@@ -3,8 +3,9 @@ const MedicineUsage = require("../models/MedicineUsage");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
 
-const getAllMedicines = async () => {
-  return Medicine.find().sort({ createdAt: -1 });
+const getAllMedicines = async ({ includeArchived = false } = {}) => {
+  const filter = includeArchived ? {} : { isArchived: { $ne: true } };
+  return Medicine.find(filter).sort({ createdAt: -1 });
 };
 
 const getMedicineById = async (medicineId) => {
@@ -28,10 +29,27 @@ const addMedicine = async ({ name, price, user }) => {
     throw new AppError("Only nurse can add new medicine names", 403);
   }
 
+  const safeName = name.trim();
+  const existingMedicine = await Medicine.findOne({ name: safeName });
+
+  if (existingMedicine && existingMedicine.isArchived) {
+    existingMedicine.isArchived = false;
+    existingMedicine.price = price;
+    existingMedicine.stock = 0;
+    existingMedicine.createdBy = {
+      userId: user._id,
+      role: user.role,
+      name: user.name
+    };
+    await existingMedicine.save();
+    return existingMedicine;
+  }
+
   return Medicine.create({
-    name: name.trim(),
+    name: safeName,
     stock: 0,
     price,
+    isArchived: false,
     createdBy: {
       userId: user._id,
       role: user.role,
@@ -48,6 +66,9 @@ const updateMedicine = async ({ medicineId, name, price, user }) => {
   const medicine = await Medicine.findById(medicineId);
   if (!medicine) {
     throw new AppError("Medicine not found", 404);
+  }
+  if (medicine.isArchived) {
+    throw new AppError("Bu dori arxivlangan, tahrirlab bo'lmaydi", 400);
   }
 
   const hasName = typeof name === "string";
@@ -85,6 +106,9 @@ const deleteMedicine = async ({ medicineId, user }) => {
   if (!medicine) {
     throw new AppError("Medicine not found", 404);
   }
+  if (medicine.isArchived) {
+    return { archived: true, medicineId: String(medicine._id) };
+  }
 
   if (medicine.stock > 0) {
     throw new AppError("Stock 0 bo'lmaguncha dorini o'chirib bo'lmaydi", 400);
@@ -92,7 +116,12 @@ const deleteMedicine = async ({ medicineId, user }) => {
 
   const usageCount = await MedicineUsage.countDocuments({ medicineId: medicine._id });
   if (usageCount > 0) {
-    throw new AppError("Bu dori ishlatilgan, tarix uchun o'chirib bo'lmaydi", 400);
+    medicine.isArchived = true;
+    await medicine.save();
+    return {
+      archived: true,
+      medicineId: String(medicine._id)
+    };
   }
 
   await Medicine.deleteOne({ _id: medicine._id });
@@ -105,7 +134,7 @@ const increaseStock = async ({ medicineId, quantity }) => {
   }
 
   const medicine = await Medicine.findOneAndUpdate(
-    { _id: medicineId },
+    { _id: medicineId, isArchived: { $ne: true } },
     { $inc: { stock: quantity } },
     { new: true, runValidators: true }
   );
@@ -160,7 +189,8 @@ const increaseStockBulk = async ({ items }) => {
 
   try {
     const medicines = await Medicine.find({
-      _id: { $in: medicineIds }
+      _id: { $in: medicineIds },
+      isArchived: { $ne: true }
     })
       .select("_id name")
       .session(session);
@@ -178,10 +208,21 @@ const increaseStockBulk = async ({ items }) => {
       }
     }));
 
-    await Medicine.bulkWrite(operations, { session });
+    const operationsWithArchiveGuard = operations.map((op) => ({
+      updateOne: {
+        ...op.updateOne,
+        filter: {
+          ...op.updateOne.filter,
+          isArchived: { $ne: true }
+        }
+      }
+    }));
+
+    await Medicine.bulkWrite(operationsWithArchiveGuard, { session });
 
     const updatedMedicines = await Medicine.find({
-      _id: { $in: medicineIds }
+      _id: { $in: medicineIds },
+      isArchived: { $ne: true }
     })
       .sort({ name: 1 })
       .session(session);
@@ -202,7 +243,7 @@ const updateStock = async ({ medicineId, stock }) => {
   }
 
   const medicine = await Medicine.findOneAndUpdate(
-    { _id: medicineId },
+    { _id: medicineId, isArchived: { $ne: true } },
     { $set: { stock } },
     { new: true, runValidators: true }
   );
