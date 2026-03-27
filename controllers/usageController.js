@@ -22,6 +22,7 @@ const useService = asyncHandler(async (req, res) => {
     serviceId: req.body.serviceId,
     quantity: toNumber(req.body.quantity),
     price: toNumber(req.body.price),
+    priceTier: req.body.priceTier,
     patient: req.body.patient,
     lorIdentity: req.body.lorIdentity,
     user: req.user
@@ -59,7 +60,8 @@ const createCheckout = asyncHandler(async (req, res) => {
     ? req.body.services.map((item) => ({
         serviceId: item.serviceId,
         quantity: toNumber(item.quantity),
-        price: toNumber(item.price)
+        price: toNumber(item.price),
+        priceTier: item.priceTier
       }))
     : [];
 

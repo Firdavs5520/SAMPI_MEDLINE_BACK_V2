@@ -13,6 +13,10 @@ const serviceUsageSchema = new mongoose.Schema(
       required: true,
       min: 1
     },
+    priceTier: {
+      type: String,
+      enum: ["first", "second", "third"]
+    },
     usedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

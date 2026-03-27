@@ -2,6 +2,24 @@ const Service = require("../models/Service");
 const ServiceUsage = require("../models/ServiceUsage");
 const AppError = require("../utils/AppError");
 
+const validatePrice = (price) => {
+  if (typeof price !== "number" || price <= 0 || price >= 1000000) {
+    throw new AppError("Price must be > 0 and < 1,000,000", 400);
+  }
+};
+
+const parseNursePriceOptions = (priceOptions) => {
+  const first = Number(priceOptions?.first);
+  const second = Number(priceOptions?.second);
+  const third = Number(priceOptions?.third);
+
+  validatePrice(first);
+  validatePrice(second);
+  validatePrice(third);
+
+  return { first, second, third };
+};
+
 const getAllServices = async ({ user } = {}) => {
   if (user?.role === "lor") {
     return Service.find({
@@ -24,15 +42,12 @@ const getServiceById = async (serviceId) => {
   return service;
 };
 
-const createService = async ({ name, type, price, user }) => {
+const createService = async ({ name, type, price, priceOptions, user }) => {
   if (!name || typeof name !== "string") {
     throw new AppError("Service name is required", 400);
   }
   if (!["nurse", "lor"].includes(type)) {
     throw new AppError('Service type must be "nurse" or "lor"', 400);
-  }
-  if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-    throw new AppError("Price must be > 0 and < 1,000,000", 400);
   }
   if (!user) {
     throw new AppError("User is required", 401);
@@ -47,6 +62,16 @@ const createService = async ({ name, type, price, user }) => {
     throw new AppError("Only manager, lor or nurse can add services", 403);
   }
 
+  let normalizedPrice = Number(price);
+  let normalizedPriceOptions;
+
+  if (type === "nurse") {
+    normalizedPriceOptions = parseNursePriceOptions(priceOptions);
+    normalizedPrice = normalizedPriceOptions.first;
+  } else {
+    validatePrice(normalizedPrice);
+  }
+
   return Service.create({
     name: name.trim(),
     type,
@@ -55,7 +80,8 @@ const createService = async ({ name, type, price, user }) => {
       role: user.role,
       name: user.name
     },
-    price
+    ...(normalizedPriceOptions ? { priceOptions: normalizedPriceOptions } : {}),
+    price: normalizedPrice
   });
 };
 
@@ -69,7 +95,7 @@ const assertServiceOwnership = (service, user) => {
   }
 };
 
-const updateService = async ({ serviceId, name, price, user }) => {
+const updateService = async ({ serviceId, name, price, priceOptions, user }) => {
   if (!user || !["nurse", "lor"].includes(user.role)) {
     throw new AppError("Only nurse or lor can update service", 403);
   }
@@ -90,9 +116,15 @@ const updateService = async ({ serviceId, name, price, user }) => {
 
   const hasName = typeof name === "string";
   const hasPrice = price !== undefined && price !== null && price !== "";
+  const hasPriceOptions =
+    priceOptions &&
+    typeof priceOptions === "object" &&
+    (priceOptions.first !== undefined ||
+      priceOptions.second !== undefined ||
+      priceOptions.third !== undefined);
 
-  if (!hasName && !hasPrice) {
-    throw new AppError("At least one field (name or price) is required", 400);
+  if (!hasName && !hasPrice && !hasPriceOptions) {
+    throw new AppError("At least one field is required", 400);
   }
 
   if (hasName) {
@@ -103,11 +135,36 @@ const updateService = async ({ serviceId, name, price, user }) => {
     service.name = safeName;
   }
 
-  if (hasPrice) {
-    if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-      throw new AppError("Price must be > 0 and < 1,000,000", 400);
+  if (service.type === "nurse") {
+    if (hasPriceOptions) {
+      const normalizedPriceOptions = parseNursePriceOptions(priceOptions);
+      service.priceOptions = normalizedPriceOptions;
+      service.price = normalizedPriceOptions.first;
+    } else if (hasPrice) {
+      const normalized = Number(price);
+      validatePrice(normalized);
+
+      const currentOptions = service.priceOptions || {};
+      const second = Number(currentOptions.second);
+      const third = Number(currentOptions.third);
+      if (!Number.isFinite(second) || !Number.isFinite(third) || second <= 0 || third <= 0) {
+        throw new AppError(
+          "Nurse service narxini yangilash uchun 1/2/3-marta narxlarni yuboring",
+          400
+        );
+      }
+
+      service.priceOptions = {
+        first: normalized,
+        second,
+        third
+      };
+      service.price = normalized;
     }
-    service.price = price;
+  } else if (hasPrice) {
+    const normalized = Number(price);
+    validatePrice(normalized);
+    service.price = normalized;
   }
 
   await service.save();

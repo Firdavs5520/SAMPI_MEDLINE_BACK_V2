@@ -18,6 +18,7 @@ const createService = asyncHandler(async (req, res) => {
     name: req.body.name,
     type: req.body.type,
     price: toNumber(req.body.price),
+    priceOptions: req.body.priceOptions,
     user: req.user
   });
   res.status(201).json({ success: true, data: service });
@@ -28,6 +29,7 @@ const updateService = asyncHandler(async (req, res) => {
     serviceId: req.params.id,
     name: req.body.name,
     price: toNumber(req.body.price),
+    priceOptions: req.body.priceOptions,
     user: req.user
   });
   res.status(200).json({ success: true, data: service });

@@ -6,6 +6,12 @@ const Check = require("../models/Check");
 const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const AppError = require("../utils/AppError");
+const NURSE_PRICE_TIERS = ["first", "second", "third"];
+const SERVICE_PRICE_TIER_LABELS = {
+  first: "1-marta",
+  second: "2-marta",
+  third: "3-marta"
+};
 
 const validateQuantity = (quantity) => {
   if (typeof quantity !== "number" || quantity <= 0) {
@@ -32,6 +38,54 @@ const resolvePrice = (inputPrice, basePrice, label = "Item") => {
   const price = Number(inputPrice);
   validatePrice(price);
   return price;
+};
+
+const normalizePriceTier = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!NURSE_PRICE_TIERS.includes(normalized)) {
+    throw new AppError("priceTier must be first, second or third", 400);
+  }
+
+  return normalized;
+};
+
+const resolveServicePrice = ({ service, inputPrice, priceTier, userRole }) => {
+  if (inputPrice !== undefined && inputPrice !== null && inputPrice !== "") {
+    const price = Number(inputPrice);
+    validatePrice(price);
+    return { price, priceTier: null, tierLabel: null };
+  }
+
+  const normalizedTier = normalizePriceTier(priceTier);
+  const isNurseService = service?.type === "nurse";
+
+  if (isNurseService && userRole === "nurse") {
+    const targetTier = normalizedTier || "first";
+    const optionPrice = Number(service?.priceOptions?.[targetTier]);
+
+    if (Number.isFinite(optionPrice) && optionPrice > 0 && optionPrice < 1000000) {
+      return {
+        price: optionPrice,
+        priceTier: targetTier,
+        tierLabel: SERVICE_PRICE_TIER_LABELS[targetTier]
+      };
+    }
+  }
+
+  return {
+    price: resolvePrice(undefined, service?.price, service?.name),
+    priceTier: null,
+    tierLabel: null
+  };
+};
+
+const getServiceCheckItemName = (serviceName, tierLabel) => {
+  if (!tierLabel) return serviceName;
+  return `${serviceName} (${tierLabel})`;
 };
 
 const normalizePatient = (patient) => {
@@ -218,7 +272,15 @@ const useMedicine = async ({ medicineId, quantity, price, user }) => {
   }
 };
 
-const useService = async ({ serviceId, quantity, price, patient, lorIdentity, user }) => {
+const useService = async ({
+  serviceId,
+  quantity,
+  price,
+  priceTier,
+  patient,
+  lorIdentity,
+  user
+}) => {
   validateQuantity(quantity);
   const normalizedPatient =
     user?.role === "lor" ? normalizePatient(patient) : normalizeOptionalPatient(patient);
@@ -237,20 +299,26 @@ const useService = async ({ serviceId, quantity, price, patient, lorIdentity, us
     enforceServiceRoleRule(service, user.role);
     enforceLorServiceOwnership(service, user);
 
-    const resolvedPrice = resolvePrice(price, service.price, service.name);
+    const resolved = resolveServicePrice({
+      service,
+      inputPrice: price,
+      priceTier,
+      userRole: user.role
+    });
 
     const [usageRecord] = await ServiceUsage.create(
       [
         {
           serviceId,
           quantity,
-          usedBy: user._id
+          usedBy: user._id,
+          ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
         }
       ],
       { session }
     );
 
-    const total = Number((quantity * resolvedPrice).toFixed(2));
+    const total = Number((quantity * resolved.price).toFixed(2));
     const checkId = await createUniqueCheckId(session);
 
     const [check] = await Check.create(
@@ -261,9 +329,9 @@ const useService = async ({ serviceId, quantity, price, patient, lorIdentity, us
           items: [
             {
               itemType: "service",
-              name: service.name,
+              name: getServiceCheckItemName(service.name, resolved.tierLabel),
               quantity,
-              price: resolvedPrice
+              price: resolved.price
             }
           ],
           total,
@@ -398,22 +466,28 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
       enforceServiceRoleRule(service, user.role);
       enforceLorServiceOwnership(service, user);
 
-      const resolvedPrice = resolvePrice(item.price, service.price, service.name);
+      const resolved = resolveServicePrice({
+        service,
+        inputPrice: item.price,
+        priceTier: item.priceTier,
+        userRole: user.role
+      });
 
       serviceUsageDocs.push({
         serviceId: service._id,
         quantity,
-        usedBy: user._id
+        usedBy: user._id,
+        ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
       });
 
       checkItems.push({
         itemType: "service",
-        name: service.name,
+        name: getServiceCheckItemName(service.name, resolved.tierLabel),
         quantity,
-        price: resolvedPrice
+        price: resolved.price
       });
 
-      total += quantity * resolvedPrice;
+      total += quantity * resolved.price;
     }
 
     if (medicineUsageDocs.length > 0) {
