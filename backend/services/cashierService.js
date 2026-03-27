@@ -4,7 +4,7 @@ const AppError = require("../utils/AppError");
 
 const DEPARTMENTS = ["lor", "nurse", "procedure"];
 const SPECIALIST_TYPES = ["nurse", "lor"];
-const PAYMENT_METHODS = ["cash", "card", "transfer", "mixed", "debt"];
+const PAYMENT_METHODS = ["cash", "card", "transfer"];
 
 const toDateString = (date) => {
   const year = date.getFullYear();
@@ -45,7 +45,7 @@ const normalizeDepartment = (value, { allowAll = false } = {}) => {
   if (!DEPARTMENTS.includes(safe)) {
     throw new AppError("department must be lor, nurse or procedure", 400);
   }
-  return safe;
+  return safe === "procedure" ? "nurse" : safe;
 };
 
 const normalizeSpecialistType = (value, { allowAll = false } = {}) => {
@@ -133,7 +133,11 @@ const buildListFilter = ({
   };
 
   if (safeDepartment !== "all") {
-    filter.department = safeDepartment;
+    if (safeDepartment === "nurse") {
+      filter.department = { $in: ["nurse", "procedure"] };
+    } else {
+      filter.department = safeDepartment;
+    }
   }
 
   if (safeSpecialistType !== "all") {
@@ -314,8 +318,7 @@ const getSummary = async ({
   };
   const byDepartment = {
     lor: { totalAmount: 0, totalPaidAmount: 0, totalDebtAmount: 0, count: 0 },
-    nurse: { totalAmount: 0, totalPaidAmount: 0, totalDebtAmount: 0, count: 0 },
-    procedure: { totalAmount: 0, totalPaidAmount: 0, totalDebtAmount: 0, count: 0 }
+    nurse: { totalAmount: 0, totalPaidAmount: 0, totalDebtAmount: 0, count: 0 }
   };
   const bySpecialistType = {
     nurse: { totalAmount: 0, totalPaidAmount: 0, totalDebtAmount: 0, count: 0 },
@@ -323,12 +326,16 @@ const getSummary = async ({
   };
 
   for (const item of summary?.byDepartment || []) {
-    if (item?._id && byDepartment[item._id]) {
-      byDepartment[item._id] = {
-        totalAmount: Number(item.totalAmount || 0),
-        totalPaidAmount: Number(item.totalPaidAmount || 0),
-        totalDebtAmount: Number(item.totalDebtAmount || 0),
-        count: Number(item.count || 0)
+    const key = item?._id === "procedure" ? "nurse" : item?._id;
+    if (key && byDepartment[key]) {
+      byDepartment[key] = {
+        totalAmount:
+          byDepartment[key].totalAmount + Number(item.totalAmount || 0),
+        totalPaidAmount:
+          byDepartment[key].totalPaidAmount + Number(item.totalPaidAmount || 0),
+        totalDebtAmount:
+          byDepartment[key].totalDebtAmount + Number(item.totalDebtAmount || 0),
+        count: byDepartment[key].count + Number(item.count || 0)
       };
     }
   }
@@ -499,6 +506,9 @@ const updateEntry = async ({ entryId, payload, user }) => {
     entry.department = normalizeDepartment(payload.department);
   } else if (!entry.department) {
     entry.department = normalizeDepartment(nextSpecialistData.specialistType);
+  } else if (entry.department === "procedure") {
+    // Backward compatibility: migrate procedure -> nurse on first update.
+    entry.department = "nurse";
   }
 
   const nextAmount =
@@ -513,7 +523,7 @@ const updateEntry = async ({ entryId, payload, user }) => {
 
   if (payload.paymentMethod !== undefined) {
     entry.paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-  } else if (!entry.paymentMethod) {
+  } else if (!entry.paymentMethod || !PAYMENT_METHODS.includes(entry.paymentMethod)) {
     entry.paymentMethod = "cash";
   }
 

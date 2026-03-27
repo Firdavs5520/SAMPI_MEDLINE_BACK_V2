@@ -36,7 +36,7 @@ const cashierEntrySchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["cash", "card", "transfer", "mixed", "debt"],
+      enum: ["cash", "card", "transfer"],
       default: "cash",
       index: true
     },

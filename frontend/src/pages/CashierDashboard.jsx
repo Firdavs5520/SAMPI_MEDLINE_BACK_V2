@@ -17,7 +17,7 @@ const sectionTabs = [
 const departmentLabels = {
   lor: "LOR",
   nurse: "Nurse",
-  procedure: "Protsedura"
+  procedure: "Nurse"
 };
 
 const specialistTypeLabels = {
@@ -28,9 +28,7 @@ const specialistTypeLabels = {
 const paymentMethodLabels = {
   cash: "Naqd",
   card: "Karta",
-  transfer: "O'tkazma",
-  mixed: "Aralash",
-  debt: "Qarzga"
+  transfer: "O'tkazma"
 };
 
 const getTodayString = () => {
@@ -518,7 +516,6 @@ function CashierDashboard() {
                   <option value="all">Barchasi</option>
                   <option value="lor">LOR</option>
                   <option value="nurse">Nurse</option>
-                  <option value="procedure">Protsedura</option>
                 </select>
               </label>
               <label className="block">
@@ -552,8 +549,6 @@ function CashierDashboard() {
                   <option value="cash">Naqd</option>
                   <option value="card">Karta</option>
                   <option value="transfer">O'tkazma</option>
-                  <option value="mixed">Aralash</option>
-                  <option value="debt">Qarzga</option>
                 </select>
               </label>
               <label className="flex items-end">
@@ -602,7 +597,6 @@ function CashierDashboard() {
                   >
                     <option value="lor">LOR</option>
                     <option value="nurse">Nurse</option>
-                    <option value="procedure">Protsedura</option>
                   </select>
                 </label>
 
@@ -695,8 +689,6 @@ function CashierDashboard() {
                     <option value="cash">Naqd</option>
                     <option value="card">Karta</option>
                     <option value="transfer">O'tkazma</option>
-                    <option value="mixed">Aralash</option>
-                    <option value="debt">Qarzga</option>
                   </select>
                 </label>
 
