@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import medicineService from "../services/medicineService.js";
 import Input from "../components/Input.jsx";
 import Button from "../components/Button.jsx";
@@ -7,18 +7,22 @@ import Table from "../components/Table.jsx";
 import Spinner from "../components/Spinner.jsx";
 import { extractErrorMessage, formatCurrency } from "../utils/format.js";
 
-const createEmptyRow = () => ({
-  medicineId: "",
-  quantity: ""
-});
-
 function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [savingStock, setSavingStock] = useState(false);
   const [medicines, setMedicines] = useState([]);
-  const [stockRows, setStockRows] = useState([createEmptyRow()]);
+  const [selectedMedicineIds, setSelectedMedicineIds] = useState([]);
+  const [selectedInputs, setSelectedInputs] = useState({});
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+
+  const sortedMedicines = useMemo(
+    () =>
+      [...medicines].sort((a, b) =>
+        String(a?.name || "").localeCompare(String(b?.name || ""), "uz")
+      ),
+    [medicines]
+  );
 
   const loadMedicines = async () => {
     setLoading(true);
@@ -41,62 +45,61 @@ function DeliveryDashboard() {
     setError("");
   };
 
-  const addRow = () => {
-    setStockRows((prev) => [...prev, createEmptyRow()]);
-  };
+  const toggleMedicine = (medicineId) => {
+    setSelectedMedicineIds((prev) => {
+      const exists = prev.includes(medicineId);
+      if (exists) {
+        return prev.filter((id) => id !== medicineId);
+      }
 
-  const removeRow = (rowIndex) => {
-    setStockRows((prev) => {
-      const next = prev.filter((_, index) => index !== rowIndex);
-      return next.length === 0 ? [createEmptyRow()] : next;
+      setSelectedInputs((prevInputs) => ({
+        ...prevInputs,
+        [medicineId]: {
+          quantity: prevInputs[medicineId]?.quantity || "1"
+        }
+      }));
+
+      return [...prev, medicineId];
     });
   };
 
-  const updateRow = (rowIndex, key, value) => {
-    setStockRows((prev) =>
-      prev.map((row, index) =>
-        index === rowIndex
-          ? {
-              ...row,
-              [key]: value
-            }
-          : row
-      )
-    );
+  const updateSelectedInput = (medicineId, value) => {
+    setSelectedInputs((prev) => ({
+      ...prev,
+      [medicineId]: {
+        quantity: value
+      }
+    }));
   };
 
-  const handleBatchRestock = async (e) => {
-    e.preventDefault();
+  const handleBatchRestock = async () => {
     resetMessages();
     setSavingStock(true);
 
     try {
-      const preparedItems = stockRows
-        .map((row) => ({
-          medicineId: row.medicineId,
-          quantity: Number(row.quantity)
-        }))
-        .filter((row) => row.medicineId || row.quantity);
-
-      if (preparedItems.length === 0) {
-        throw new Error("Kamida bitta dori qatori to'ldiring.");
+      if (selectedMedicineIds.length === 0) {
+        throw new Error("Kamida bitta dori tanlang.");
       }
 
-      preparedItems.forEach((item) => {
-        if (!item.medicineId) {
-          throw new Error("Har bir qatorda dori tanlang.");
+      const items = selectedMedicineIds.map((medicineId) => {
+        const quantity = Number(selectedInputs[medicineId]?.quantity);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error("Har bir dorida miqdor 0 dan katta bo'lishi kerak.");
         }
-        if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
-          throw new Error("Har bir qatorda miqdor 0 dan katta bo'lishi kerak.");
-        }
+
+        return {
+          medicineId,
+          quantity
+        };
       });
 
-      await medicineService.increaseStockBulk(preparedItems);
+      await medicineService.increaseStockBulk(items);
 
       setSuccess(
-        `${preparedItems.length} ta qator bo'yicha dori qoldig'i muvaffaqiyatli oshirildi.`
+        `${items.length} ta dori bo'yicha ombor qoldig'i muvaffaqiyatli oshirildi.`
       );
-      setStockRows([createEmptyRow()]);
+      setSelectedMedicineIds([]);
+      setSelectedInputs({});
       await loadMedicines();
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -112,67 +115,98 @@ function DeliveryDashboard() {
   return (
     <div className="space-y-6">
       <div className="card p-4">
-        <h2 className="text-lg font-semibold text-slate-800">
-          Omborga bir nechta dori kiritish
-        </h2>
+        <h2 className="text-lg font-semibold text-slate-800">1-qadam: Dorilarni tanlang</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Delivery yangi dori nomi qo'shmaydi, mavjud dorilar qoldig'ini birdaniga oshiradi.
+          Kuryer bir nechta dorini button orqali tanlaydi.
         </p>
 
-        <form onSubmit={handleBatchRestock} className="space-y-3">
-          {stockRows.map((row, index) => (
-            <div
-              key={`${row.medicineId}-${index}`}
-              className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[1fr_180px_auto]"
-            >
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                  Dori tanlang
-                </span>
-                <select
-                  value={row.medicineId}
-                  onChange={(e) => updateRow(index, "medicineId", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="">Tanlang</option>
-                  {medicines.map((medicine) => (
-                    <option key={medicine._id} value={medicine._id}>
-                      {medicine.name} (qoldiq: {medicine.stock})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <Input
-                label="Keltirilgan miqdor"
-                type="number"
-                min="1"
-                value={row.quantity}
-                onChange={(e) => updateRow(index, "quantity", e.target.value)}
-              />
-
-              <Button
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {sortedMedicines.map((medicine) => {
+            const selected = selectedMedicineIds.includes(medicine._id);
+            return (
+              <button
+                key={medicine._id}
                 type="button"
-                variant="secondary"
-                className="h-fit self-end"
-                onClick={() => removeRow(index)}
-                disabled={stockRows.length === 1}
+                onClick={() => toggleMedicine(medicine._id)}
+                className={`rounded-xl border px-3 py-3 text-left transition ${
+                  selected
+                    ? "border-primary bg-cyan-50"
+                    : "border-slate-200 bg-white hover:border-primary/50"
+                }`}
               >
-                Qatorni o'chirish
-              </Button>
-            </div>
-          ))}
+                <p className="font-semibold text-slate-800">{medicine.name}</p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Hozirgi qoldiq: {medicine.stock}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Narx: {medicine.price ? formatCurrency(medicine.price) : "-"}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={addRow}>
-              + Qator qo'shish
-            </Button>
-            <Button type="submit" loading={savingStock}>
-              Barchasini omborga kiritish
+      {selectedMedicineIds.length > 0 ? (
+        <div className="card p-4">
+          <h2 className="text-lg font-semibold text-slate-800">
+            2-qadam: Tanlangan dorilar miqdorini kiriting
+          </h2>
+          <p className="mb-4 text-sm text-slate-500">
+            Har bir tanlangan doriga keltirilgan miqdorni yozing.
+          </p>
+
+          <div className="space-y-3">
+            {selectedMedicineIds.map((medicineId) => {
+              const medicine = sortedMedicines.find((item) => item._id === medicineId);
+              const input = selectedInputs[medicineId] || {};
+
+              return (
+                <div
+                  key={medicineId}
+                  className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[1fr_180px_auto]"
+                >
+                  <div>
+                    <p className="font-medium text-slate-800">{medicine?.name}</p>
+                    <p className="text-xs text-slate-500">
+                      Hozirgi qoldiq: {medicine?.stock}
+                    </p>
+                  </div>
+
+                  <Input
+                    label="Keltirilgan miqdor"
+                    type="number"
+                    min="1"
+                    value={input.quantity || ""}
+                    onChange={(e) => updateSelectedInput(medicineId, e.target.value)}
+                  />
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="h-fit self-end"
+                    onClick={() => toggleMedicine(medicineId)}
+                  >
+                    Olib tashlash
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4">
+            <Button loading={savingStock} onClick={handleBatchRestock}>
+              Omborga qo'shish
             </Button>
           </div>
-        </form>
-      </div>
+        </div>
+      ) : (
+        <div className="card p-4">
+          <p className="text-sm text-slate-600">
+            Miqdor kiritish bo'limi chiqishi uchun avval dorilarni tanlang.
+          </p>
+        </div>
+      )}
 
       <Alert type="success" message={success} />
       <Alert type="error" message={error} />
@@ -180,7 +214,7 @@ function DeliveryDashboard() {
       <div className="card p-4">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Dorilar ro'yxati</h2>
         <Table
-          data={medicines}
+          data={sortedMedicines}
           columns={[
             { key: "name", label: "Nomi" },
             {
