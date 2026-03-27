@@ -50,10 +50,6 @@ const updateMedicine = async ({ medicineId, name, price, user }) => {
     throw new AppError("Medicine not found", 404);
   }
 
-  if (!medicine.createdBy?.userId || String(medicine.createdBy.userId) !== String(user._id)) {
-    throw new AppError("You can only update your own medicines", 403);
-  }
-
   const hasName = typeof name === "string";
   const hasPrice = price !== undefined && price !== null && price !== "";
 
@@ -88,10 +84,6 @@ const deleteMedicine = async ({ medicineId, user }) => {
   const medicine = await Medicine.findById(medicineId);
   if (!medicine) {
     throw new AppError("Medicine not found", 404);
-  }
-
-  if (!medicine.createdBy?.userId || String(medicine.createdBy.userId) !== String(user._id)) {
-    throw new AppError("You can only delete your own medicines", 403);
   }
 
   if (medicine.stock > 0) {
