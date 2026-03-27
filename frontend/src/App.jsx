@@ -74,7 +74,27 @@ function App() {
 
       <Route element={<ProtectedRoute allowedRoles={["cashier"]} />}>
         <Route element={<DashboardLayout />}>
-          <Route path="/cashier" element={<CashierDashboard />} />
+          <Route path="/cashier" element={<Navigate to="/cashier/nurse-patients" replace />} />
+          <Route
+            path="/cashier/nurse-patients"
+            element={<CashierDashboard forcedSection="nurse-patients" />}
+          />
+          <Route
+            path="/cashier/lor-patients"
+            element={<CashierDashboard forcedSection="lor-patients" />}
+          />
+          <Route
+            path="/cashier/nurse-specialists"
+            element={<CashierDashboard forcedSection="nurse-specialists" />}
+          />
+          <Route
+            path="/cashier/lor-specialists"
+            element={<CashierDashboard forcedSection="lor-specialists" />}
+          />
+          <Route
+            path="/cashier/journal"
+            element={<CashierDashboard forcedSection="journal" />}
+          />
         </Route>
       </Route>
 
