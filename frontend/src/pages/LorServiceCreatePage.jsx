@@ -5,6 +5,7 @@ import Button from "../components/Button.jsx";
 import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
+import ConfirmActionModal from "../components/ConfirmActionModal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { extractErrorMessage, formatCurrency } from "../utils/format.js";
 
@@ -18,6 +19,7 @@ function LorServiceCreatePage() {
   const [newServiceForm, setNewServiceForm] = useState({ name: "", price: "" });
   const [editingServiceId, setEditingServiceId] = useState("");
   const [editForm, setEditForm] = useState({ name: "", price: "" });
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const currentUserId = String(user?.id || user?._id || "");
@@ -138,28 +140,29 @@ function LorServiceCreatePage() {
     }
   };
 
-  const handleDelete = async (service) => {
+  const handleDeleteClick = (service) => {
     if (!service?._id) return;
     if (!canManageService(service)) {
       setError("Faqat o'zingiz qo'shgan xizmatni o'chirishingiz mumkin.");
       return;
     }
-
-    const confirmed = window.confirm(
-      `${service.name} xizmatini o'chirmoqchimisiz? Bu amal qaytarilmaydi.`
-    );
-    if (!confirmed) return;
-
     resetMessages();
-    setDeletingId(service._id);
+    setDeleteTarget(service);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget?._id) return;
+    resetMessages();
+    setDeletingId(deleteTarget._id);
     try {
-      await serviceService.deleteService(service._id);
+      await serviceService.deleteService(deleteTarget._id);
       setSuccess("Xizmat o'chirildi.");
 
-      if (editingServiceId === service._id) {
+      if (editingServiceId === deleteTarget._id) {
         handleCancelEdit();
       }
 
+      setDeleteTarget(null);
       await loadServices();
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -274,7 +277,7 @@ function LorServiceCreatePage() {
                     type="button"
                     variant="danger"
                     className="px-3 py-1.5 text-xs"
-                    onClick={() => handleDelete(row)}
+                    onClick={() => handleDeleteClick(row)}
                     loading={deletingId === row._id}
                     disabled={!canManageService(row)}
                   >
@@ -286,6 +289,23 @@ function LorServiceCreatePage() {
           ]}
         />
       </div>
+
+      <ConfirmActionModal
+        open={Boolean(deleteTarget)}
+        title="Xizmatni o'chirish"
+        description={
+          deleteTarget
+            ? `${deleteTarget.name} xizmatini o'chirmoqchimisiz?`
+            : ""
+        }
+        confirmText="Ha, o'chirish"
+        cancelText="Yo'q"
+        loading={Boolean(deleteTarget?._id) && deletingId === deleteTarget._id}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => {
+          if (!deletingId) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Button from "../components/Button.jsx";
 import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
+import ConfirmActionModal from "../components/ConfirmActionModal.jsx";
 import { extractErrorMessage, formatCurrency } from "../utils/format.js";
 
 function NurseMedicinesPage() {
@@ -17,6 +18,7 @@ function NurseMedicinesPage() {
   const [editingMedicineId, setEditingMedicineId] = useState("");
   const [editForm, setEditForm] = useState({ name: "", price: "" });
   const [medicines, setMedicines] = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -117,24 +119,25 @@ function NurseMedicinesPage() {
     }
   };
 
-  const handleDelete = async (medicine) => {
+  const handleDeleteClick = (medicine) => {
     if (!medicine?._id) return;
-
-    const confirmed = window.confirm(
-      `${medicine.name} dorisini o'chirmoqchimisiz? Bu amal qaytarilmaydi.`
-    );
-    if (!confirmed) return;
-
     resetMessages();
-    setDeletingId(medicine._id);
+    setDeleteTarget(medicine);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget?._id) return;
+    resetMessages();
+    setDeletingId(deleteTarget._id);
     try {
-      await medicineService.deleteMedicine(medicine._id);
+      await medicineService.deleteMedicine(deleteTarget._id);
       setSuccess("Dori o'chirildi.");
 
-      if (editingMedicineId === medicine._id) {
+      if (editingMedicineId === deleteTarget._id) {
         handleCancelEdit();
       }
 
+      setDeleteTarget(null);
       await loadMedicines();
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -262,7 +265,7 @@ function NurseMedicinesPage() {
                     type="button"
                     variant="danger"
                     className="px-3 py-1.5 text-xs"
-                    onClick={() => handleDelete(row)}
+                    onClick={() => handleDeleteClick(row)}
                     loading={deletingId === row._id}
                   >
                     O'chirish
@@ -273,6 +276,23 @@ function NurseMedicinesPage() {
           ]}
         />
       </div>
+
+      <ConfirmActionModal
+        open={Boolean(deleteTarget)}
+        title="Dorini o'chirish"
+        description={
+          deleteTarget
+            ? `${deleteTarget.name} dorisini o'chirmoqchimisiz?`
+            : ""
+        }
+        confirmText="Ha, o'chirish"
+        cancelText="Yo'q"
+        loading={Boolean(deleteTarget?._id) && deletingId === deleteTarget._id}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => {
+          if (!deletingId) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }
