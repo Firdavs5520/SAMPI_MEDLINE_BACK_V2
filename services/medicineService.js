@@ -1,6 +1,7 @@
 const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
 const AppError = require("../utils/AppError");
+const mongoose = require("mongoose");
 
 const getAllMedicines = async () => {
   return Medicine.find().sort({ createdAt: -1 });
@@ -124,6 +125,85 @@ const increaseStock = async ({ medicineId, quantity }) => {
   return medicine;
 };
 
+const increaseStockBulk = async ({ items }) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new AppError("Kamida bitta dori yuborilishi kerak", 400);
+  }
+
+  if (items.length > 100) {
+    throw new AppError("Bir martada maksimum 100 ta dori yuborish mumkin", 400);
+  }
+
+  const normalizedItems = items.map((item) => {
+    const quantity = Number(item?.quantity);
+    if (typeof item?.medicineId !== "string" || !item.medicineId.trim()) {
+      throw new AppError("medicineId majburiy", 400);
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new AppError("Har bir miqdor 0 dan katta bo'lishi kerak", 400);
+    }
+
+    return {
+      medicineId: item.medicineId.trim(),
+      quantity
+    };
+  });
+
+  const groupedMap = new Map();
+  normalizedItems.forEach((item) => {
+    groupedMap.set(
+      item.medicineId,
+      (groupedMap.get(item.medicineId) || 0) + item.quantity
+    );
+  });
+
+  const groupedItems = Array.from(groupedMap.entries()).map(([medicineId, quantity]) => ({
+    medicineId,
+    quantity
+  }));
+  const medicineIds = groupedItems.map((item) => item.medicineId);
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const medicines = await Medicine.find({
+      _id: { $in: medicineIds }
+    })
+      .select("_id name")
+      .session(session);
+
+    if (medicines.length !== medicineIds.length) {
+      const foundSet = new Set(medicines.map((item) => String(item._id)));
+      const missingIds = medicineIds.filter((id) => !foundSet.has(String(id)));
+      throw new AppError(`Medicine not found: ${missingIds.join(", ")}`, 404);
+    }
+
+    const operations = groupedItems.map((item) => ({
+      updateOne: {
+        filter: { _id: item.medicineId },
+        update: { $inc: { stock: item.quantity } }
+      }
+    }));
+
+    await Medicine.bulkWrite(operations, { session });
+
+    const updatedMedicines = await Medicine.find({
+      _id: { $in: medicineIds }
+    })
+      .sort({ name: 1 })
+      .session(session);
+
+    await session.commitTransaction();
+    return updatedMedicines;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
 const updateStock = async ({ medicineId, stock }) => {
   if (typeof stock !== "number" || stock < 0) {
     throw new AppError("Stock must be a number and cannot be negative", 400);
@@ -149,5 +229,6 @@ module.exports = {
   updateMedicine,
   deleteMedicine,
   increaseStock,
+  increaseStockBulk,
   updateStock
 };

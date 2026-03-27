@@ -48,6 +48,21 @@ const increaseStock = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: medicine });
 });
 
+const increaseStockBulk = asyncHandler(async (req, res) => {
+  const items = Array.isArray(req.body.items)
+    ? req.body.items.map((item) => ({
+        medicineId: item.medicineId,
+        quantity: toNumber(item.quantity)
+      }))
+    : [];
+
+  const medicines = await medicineService.increaseStockBulk({
+    items
+  });
+
+  res.status(200).json({ success: true, data: medicines });
+});
+
 const updateStock = asyncHandler(async (req, res) => {
   const medicine = await medicineService.updateStock({
     medicineId: req.params.id,
@@ -63,5 +78,6 @@ module.exports = {
   updateMedicine,
   deleteMedicine,
   increaseStock,
+  increaseStockBulk,
   updateStock
 };
