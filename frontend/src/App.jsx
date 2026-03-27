@@ -84,6 +84,14 @@ function App() {
             element={<CashierDashboard forcedSection="lor-patients" />}
           />
           <Route
+            path="/cashier/nurse-entries"
+            element={<CashierDashboard forcedSection="nurse-entries" />}
+          />
+          <Route
+            path="/cashier/lor-entries"
+            element={<CashierDashboard forcedSection="lor-entries" />}
+          />
+          <Route
             path="/cashier/nurse-specialists"
             element={<CashierDashboard forcedSection="nurse-specialists" />}
           />

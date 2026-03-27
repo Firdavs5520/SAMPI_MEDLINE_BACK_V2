@@ -21,6 +21,18 @@ const SECTION_META = {
     lockedType: "lor",
     specialistLabel: "Vrach"
   },
+  "nurse-entries": {
+    title: "Nurse yozuvlari",
+    subtitle: "Nurse bo'limi yozuvlari, to'lov va qarzlar.",
+    lockedType: "nurse",
+    specialistLabel: "Medsestra"
+  },
+  "lor-entries": {
+    title: "LOR yozuvlari",
+    subtitle: "LOR bo'limi yozuvlari, to'lov va qarzlar.",
+    lockedType: "lor",
+    specialistLabel: "Vrach"
+  },
   journal: {
     title: "Kassa jurnali",
     subtitle: "Barcha yozuvlar umumiy jurnal ko'rinishi.",
@@ -45,11 +57,6 @@ const departmentLabels = {
   lor: "LOR",
   nurse: "Nurse",
   procedure: "Nurse"
-};
-
-const specialistTypeLabels = {
-  nurse: "Nurse",
-  lor: "LOR"
 };
 
 const paymentMethodLabels = {
@@ -126,6 +133,11 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const lockedType = sectionMeta.lockedType;
   const isSpecialistSection =
     forcedSection === "nurse-specialists" || forcedSection === "lor-specialists";
+  const isFormSection = forcedSection === "nurse-patients" || forcedSection === "lor-patients";
+  const isEntriesSection =
+    forcedSection === "nurse-entries" ||
+    forcedSection === "lor-entries" ||
+    forcedSection === "journal";
   const specialistPageType = forcedSection === "nurse-specialists" ? "nurse" : "lor";
 
   const [loading, setLoading] = useState(true);
@@ -553,13 +565,15 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
       label: "Amallar",
       render: (row) => (
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => startEditEntry(row)}
-            className="rounded-lg bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-300"
-          >
-            Tahrirlash
-          </button>
+          {isFormSection ? (
+            <button
+              type="button"
+              onClick={() => startEditEntry(row)}
+              className="rounded-lg bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-300"
+            >
+              Tahrirlash
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setDeleteEntryTarget(row)}
@@ -606,248 +620,233 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
         />
       </div>
 
-      <div className="card p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-slate-800">
-          {editingEntry ? "Yozuvni tahrirlash" : "Yangi bemor yozuvi"}
-        </h2>
+      {isFormSection ? (
+        <div className="card p-4 sm:p-5">
+          <h2 className="text-lg font-semibold text-slate-800">
+            {editingEntry ? "Yozuvni tahrirlash" : "Yangi bemor yozuvi"}
+          </h2>
 
-        <form className="mt-4 space-y-3" onSubmit={handleSaveEntry}>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {!lockedType ? (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
-                <select
-                  value={form.department}
-                  onChange={(e) => handleFormChange("department", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="lor">LOR</option>
-                  <option value="nurse">Nurse</option>
-                </select>
-              </label>
-            ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <p className="text-xs text-slate-500">Bo'lim</p>
-                <p className="text-sm font-semibold text-slate-800">{departmentLabels[lockedType]}</p>
-              </div>
-            )}
+          <form className="mt-4 space-y-3" onSubmit={handleSaveEntry}>
+            <div className="grid gap-3 md:grid-cols-2">
+              {!lockedType ? (
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
+                  <select
+                    value={form.department}
+                    onChange={(e) => handleFormChange("department", e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  >
+                    <option value="lor">LOR</option>
+                    <option value="nurse">Nurse</option>
+                  </select>
+                </label>
+              ) : (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <p className="text-xs text-slate-500">Bo'lim</p>
+                  <p className="text-sm font-semibold text-slate-800">{departmentLabels[lockedType]}</p>
+                </div>
+              )}
 
-            {!lockedType ? (
               <label className="block">
                 <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                  Mutaxassis turi
+                  {specialistTitle} ro'yxati
                 </span>
                 <select
-                  value={form.specialistType}
-                  onChange={(e) => handleFormChange("specialistType", e.target.value)}
+                  value={form.specialistId}
+                  onChange={(e) => handleFormChange("specialistId", e.target.value)}
                   className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
                 >
-                  <option value="nurse">Nurse</option>
-                  <option value="lor">LOR</option>
+                  <option value="">Ro'yxatdan tanlang</option>
+                  {selectedTypeSpecialists.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.name}
+                    </option>
+                  ))}
                 </select>
               </label>
-            ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <p className="text-xs text-slate-500">Mutaxassis turi</p>
-                <p className="text-sm font-semibold text-slate-800">{specialistTypeLabels[lockedType]}</p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Input
+                label="Bemor F.I.O"
+                value={form.patientName}
+                onChange={(e) => handleFormChange("patientName", e.target.value)}
+                placeholder="Masalan: Ali Valiyev"
+              />
+              <Input
+                label="Jami summa"
+                type="number"
+                min="1"
+                max="999999"
+                value={form.amount}
+                onChange={(e) => handleFormChange("amount", e.target.value)}
+                placeholder="Masalan: 120000"
+              />
+              <Input
+                label="To'langan summa"
+                type="number"
+                min="0"
+                max="999999"
+                value={form.paidAmount}
+                onChange={(e) => handleFormChange("paidAmount", e.target.value)}
+                placeholder="Masalan: 100000"
+              />
+              <Input
+                label="Telefon"
+                value={form.patientPhone}
+                onChange={(e) => handleFormChange("patientPhone", e.target.value)}
+                placeholder="Masalan: 90 123 45 67"
+              />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
+                <select
+                  value={form.paymentMethod}
+                  onChange={(e) => handleFormChange("paymentMethod", e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="cash">Naqd</option>
+                  <option value="card">Karta</option>
+                  <option value="transfer">O'tkazma</option>
+                </select>
+              </label>
+
+              <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Qarz</p>
+                <p className="mt-1 text-lg font-bold text-orange-800">{formatCurrency(calculatedDebt)} so'm</p>
               </div>
-            )}
+            </div>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                {specialistTitle} ro'yxati
-              </span>
-              <select
-                value={form.specialistId}
-                onChange={(e) => handleFormChange("specialistId", e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="">Ro'yxatdan tanlang</option>
-                {selectedTypeSpecialists.map((item) => (
-                  <option key={item._id} value={item._id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Input
-              label="Bemor F.I.O"
-              value={form.patientName}
-              onChange={(e) => handleFormChange("patientName", e.target.value)}
-              placeholder="Masalan: Ali Valiyev"
-            />
-            <Input
-              label="Jami summa"
-              type="number"
-              min="1"
-              max="999999"
-              value={form.amount}
-              onChange={(e) => handleFormChange("amount", e.target.value)}
-              placeholder="Masalan: 120000"
-            />
-            <Input
-              label="To'langan summa"
-              type="number"
-              min="0"
-              max="999999"
-              value={form.paidAmount}
-              onChange={(e) => handleFormChange("paidAmount", e.target.value)}
-              placeholder="Masalan: 100000"
-            />
-            <Input
-              label="Telefon"
-              value={form.patientPhone}
-              onChange={(e) => handleFormChange("patientPhone", e.target.value)}
-              placeholder="Masalan: 90 123 45 67"
-            />
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
-              <select
-                value={form.paymentMethod}
-                onChange={(e) => handleFormChange("paymentMethod", e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="cash">Naqd</option>
-                <option value="card">Karta</option>
-                <option value="transfer">O'tkazma</option>
-              </select>
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Izoh</span>
+              <textarea
+                value={form.note}
+                onChange={(e) => handleFormChange("note", e.target.value)}
+                rows={2}
+                placeholder="Qo'shimcha izoh (ixtiyoriy)"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
+              />
             </label>
 
-            <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Qarz</p>
-              <p className="mt-1 text-lg font-bold text-orange-800">{formatCurrency(calculatedDebt)} so'm</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="submit" loading={savingEntry}>
+                {editingEntry ? "Yangilash" : "Qo'shish"}
+              </Button>
+              {editingEntry ? (
+                <Button type="button" variant="secondary" onClick={resetForm}>
+                  Bekor qilish
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {isEntriesSection ? (
+        <>
+          <div className="card p-4 sm:p-5">
+            <h2 className="text-lg font-semibold text-slate-800">Filtrlar</h2>
+            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <Input
+                label="Sana"
+                type="date"
+                value={filters.date}
+                onChange={(e) => setFilters((prev) => ({ ...prev, date: e.target.value || today }))}
+              />
+
+              {!lockedType ? (
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
+                  <select
+                    value={filters.department}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, department: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  >
+                    <option value="all">Barchasi</option>
+                    <option value="lor">LOR</option>
+                    <option value="nurse">Nurse</option>
+                  </select>
+                </label>
+              ) : null}
+
+              {!lockedType ? (
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-slate-600">
+                    Mutaxassis turi
+                  </span>
+                  <select
+                    value={filters.specialistType}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, specialistType: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  >
+                    <option value="all">Barchasi</option>
+                    <option value="nurse">Nurse</option>
+                    <option value="lor">LOR</option>
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
+                <select
+                  value={filters.paymentMethod}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, paymentMethod: e.target.value }))
+                  }
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="all">Barchasi</option>
+                  <option value="cash">Naqd</option>
+                  <option value="card">Karta</option>
+                  <option value="transfer">O'tkazma</option>
+                </select>
+              </label>
+
+              <label className="flex items-end">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={filters.debtOnly}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, debtOnly: e.target.checked }))
+                    }
+                  />
+                  Faqat qarzdorlar
+                </span>
+              </label>
+            </div>
+
+            <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={handleSearchSubmit}>
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Bemor yoki mutaxassis bo'yicha qidirish..."
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
+              />
+              <Button type="submit" variant="secondary">
+                Qidirish
+              </Button>
+            </form>
+          </div>
+
+          <div className="card p-4 sm:p-5">
+            <h2 className="text-lg font-semibold text-slate-800">Yozuvlar</h2>
+            <div className="mt-4">
+              <Table
+                data={tableData}
+                columns={entryColumns}
+                headerClassName={entryTableHeaderClass}
+              />
             </div>
           </div>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-600">Izoh</span>
-            <textarea
-              value={form.note}
-              onChange={(e) => handleFormChange("note", e.target.value)}
-              rows={2}
-              placeholder="Qo'shimcha izoh (ixtiyoriy)"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
-            />
-          </label>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" loading={savingEntry}>
-              {editingEntry ? "Yangilash" : "Qo'shish"}
-            </Button>
-            {editingEntry ? (
-              <Button type="button" variant="secondary" onClick={resetForm}>
-                Bekor qilish
-              </Button>
-            ) : null}
-          </div>
-        </form>
-      </div>
-
-      <div className="card p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-slate-800">Filtrlar</h2>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <Input
-            label="Sana"
-            type="date"
-            value={filters.date}
-            onChange={(e) => setFilters((prev) => ({ ...prev, date: e.target.value || today }))}
-          />
-
-          {!lockedType ? (
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
-              <select
-                value={filters.department}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, department: e.target.value }))
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="all">Barchasi</option>
-                <option value="lor">LOR</option>
-                <option value="nurse">Nurse</option>
-              </select>
-            </label>
-          ) : null}
-
-          {!lockedType ? (
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                Mutaxassis turi
-              </span>
-              <select
-                value={filters.specialistType}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, specialistType: e.target.value }))
-                }
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="all">Barchasi</option>
-                <option value="nurse">Nurse</option>
-                <option value="lor">LOR</option>
-              </select>
-            </label>
-          ) : null}
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
-            <select
-              value={filters.paymentMethod}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, paymentMethod: e.target.value }))
-              }
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-            >
-              <option value="all">Barchasi</option>
-              <option value="cash">Naqd</option>
-              <option value="card">Karta</option>
-              <option value="transfer">O'tkazma</option>
-            </select>
-          </label>
-
-          <label className="flex items-end">
-            <span className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={filters.debtOnly}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, debtOnly: e.target.checked }))
-                }
-              />
-              Faqat qarzdorlar
-            </span>
-          </label>
-        </div>
-
-        <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={handleSearchSubmit}>
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Bemor yoki mutaxassis bo'yicha qidirish..."
-            className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-          <Button type="submit" variant="secondary">
-            Qidirish
-          </Button>
-        </form>
-      </div>
-
-      <div className="card p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-slate-800">Yozuvlar</h2>
-        <div className="mt-4">
-          <Table
-            data={tableData}
-            columns={entryColumns}
-            headerClassName={entryTableHeaderClass}
-          />
-        </div>
-      </div>
+        </>
+      ) : null}
 
       <Alert type="success" message={success} />
       <Alert type="error" message={error} />
