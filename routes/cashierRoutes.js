@@ -9,6 +9,9 @@ router.use(protect, allowRoles("cashier", "manager"));
 
 router.get("/entries", cashierController.getEntries);
 router.get("/summary", cashierController.getSummary);
+router.get("/specialists", cashierController.getSpecialists);
+router.post("/specialists", allowRoles("cashier"), cashierController.createSpecialist);
+router.delete("/specialists/:id", allowRoles("cashier"), cashierController.deleteSpecialist);
 router.post("/entries", allowRoles("cashier"), cashierController.createEntry);
 router.patch("/entries/:id", allowRoles("cashier"), cashierController.updateEntry);
 router.delete("/entries/:id", allowRoles("cashier"), cashierController.deleteEntry);

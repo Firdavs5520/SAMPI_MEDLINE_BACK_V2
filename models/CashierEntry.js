@@ -4,7 +4,7 @@ const cashierEntrySchema = new mongoose.Schema(
   {
     department: {
       type: String,
-      enum: ["lor", "procedure"],
+      enum: ["lor", "nurse", "procedure"],
       required: true,
       index: true
     },
@@ -23,6 +23,33 @@ const cashierEntrySchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true
+    },
+    specialistType: {
+      type: String,
+      enum: ["nurse", "lor"],
+      default: "lor",
+      index: true
+    },
+    specialistId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "CashierSpecialist"
+    },
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "card", "transfer", "mixed", "debt"],
+      default: "cash",
+      index: true
+    },
+    paidAmount: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    debtAmount: {
+      type: Number,
+      min: 0,
+      default: 0,
+      index: true
     },
     patientPhone: {
       type: String,
@@ -61,7 +88,7 @@ const cashierEntrySchema = new mongoose.Schema(
   }
 );
 
-cashierEntrySchema.index({ entryDate: 1, department: 1, createdAt: 1 });
+cashierEntrySchema.index({ entryDate: 1, department: 1, specialistType: 1, createdAt: 1 });
 cashierEntrySchema.index({ patientName: "text", specialistName: "text", patientPhone: "text" });
 
 module.exports = mongoose.model("CashierEntry", cashierEntrySchema);
