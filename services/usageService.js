@@ -524,4 +524,102 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
   }
 };
 
-module.exports = { useMedicine, useService, createNurseCheckout, getMyChecks };
+const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) => {
+  if (!user || user.role !== "lor") {
+    throw new AppError("Only lor can create this checkout", 403);
+  }
+
+  const serviceItems = Array.isArray(services) ? services : [];
+  if (serviceItems.length === 0) {
+    throw new AppError("Kamida bitta xizmat tanlanishi kerak", 400);
+  }
+
+  assertUniqueIds(
+    serviceItems,
+    "serviceId",
+    "Duplicate service is not allowed in one checkout"
+  );
+
+  const normalizedPatient = normalizePatient(patient);
+  const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    let total = 0;
+    const checkItems = [];
+    const serviceUsageDocs = [];
+
+    for (const item of serviceItems) {
+      const quantity = Number(item.quantity);
+      validateQuantity(quantity);
+
+      const service = await Service.findById(item.serviceId).session(session);
+      if (!service) {
+        throw new AppError("Service not found", 404);
+      }
+
+      enforceServiceRoleRule(service, user.role);
+      enforceLorServiceOwnership(service, user);
+
+      const resolved = resolveServicePrice({
+        service,
+        inputPrice: item.price,
+        priceTier: item.priceTier,
+        userRole: user.role
+      });
+
+      serviceUsageDocs.push({
+        serviceId: service._id,
+        quantity,
+        usedBy: user._id,
+        ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
+      });
+
+      checkItems.push({
+        itemType: "service",
+        name: getServiceCheckItemName(service.name, resolved.tierLabel),
+        quantity,
+        price: resolved.price
+      });
+
+      total += quantity * resolved.price;
+    }
+
+    await ServiceUsage.create(serviceUsageDocs, { session });
+
+    const checkId = await createUniqueCheckId(session);
+    const [check] = await Check.create(
+      [
+        {
+          checkId,
+          type: "service",
+          items: checkItems,
+          total: Number(total.toFixed(2)),
+          patient: normalizedPatient,
+          createdBy: buildCreatedByPayload(user, {
+            lorIdentity: normalizedLorIdentity
+          })
+        }
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    return { check };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+module.exports = {
+  useMedicine,
+  useService,
+  createNurseCheckout,
+  createLorCheckout,
+  getMyChecks
+};

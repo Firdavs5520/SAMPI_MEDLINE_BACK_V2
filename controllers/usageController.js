@@ -78,4 +78,33 @@ const createCheckout = asyncHandler(async (req, res) => {
   });
 });
 
-module.exports = { useMedicine, useService, createCheckout, getMyChecks };
+const createLorCheckout = asyncHandler(async (req, res) => {
+  const services = Array.isArray(req.body.services)
+    ? req.body.services.map((item) => ({
+        serviceId: item.serviceId,
+        quantity: toNumber(item.quantity),
+        price: toNumber(item.price),
+        priceTier: item.priceTier
+      }))
+    : [];
+
+  const result = await usageService.createLorCheckout({
+    services,
+    patient: req.body.patient,
+    lorIdentity: req.body.lorIdentity,
+    user: req.user
+  });
+
+  res.status(201).json({
+    success: true,
+    data: result
+  });
+});
+
+module.exports = {
+  useMedicine,
+  useService,
+  createCheckout,
+  createLorCheckout,
+  getMyChecks
+};

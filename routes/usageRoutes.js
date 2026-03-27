@@ -10,6 +10,7 @@ router.use(protect);
 router.post("/medicine", allowRoles("nurse"), usageController.useMedicine);
 router.post("/service", allowRoles("nurse", "lor"), usageController.useService);
 router.post("/checkout", allowRoles("nurse"), usageController.createCheckout);
+router.post("/lor-checkout", allowRoles("lor"), usageController.createLorCheckout);
 router.get("/my-checks", allowRoles("lor"), usageController.getMyChecks);
 
 module.exports = router;
