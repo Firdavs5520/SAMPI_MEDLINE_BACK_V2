@@ -15,7 +15,7 @@ const medicineSchema = new mongoose.Schema(
       },
       role: {
         type: String,
-        enum: ["nurse", "lor", "delivery", "manager"],
+        enum: ["nurse", "lor", "delivery", "manager", "cashier"],
         required: true
       },
       name: {
@@ -49,3 +49,4 @@ const medicineSchema = new mongoose.Schema(
 medicineSchema.index({ name: 1 }, { unique: true });
 
 module.exports = mongoose.model("Medicine", medicineSchema);
+

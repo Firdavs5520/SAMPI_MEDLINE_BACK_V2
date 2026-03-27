@@ -6,6 +6,7 @@ const medicineRoutes = require("./routes/medicineRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const usageRoutes = require("./routes/usageRoutes");
 const reportRoutes = require("./routes/reportRoutes");
+const cashierRoutes = require("./routes/cashierRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
@@ -59,6 +60,7 @@ app.use("/api/medicines", medicineRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/usage", usageRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/cashier", cashierRoutes);
 
 // Backward-compatible routes (for old frontend builds without `/api` prefix).
 app.use("/auth", authRoutes);
@@ -66,6 +68,7 @@ app.use("/medicines", medicineRoutes);
 app.use("/services", serviceRoutes);
 app.use("/usage", usageRoutes);
 app.use("/reports", reportRoutes);
+app.use("/cashier", cashierRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

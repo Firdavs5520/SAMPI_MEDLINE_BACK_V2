@@ -421,18 +421,50 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
     const checkItems = [];
     const medicineUsageDocs = [];
     const serviceUsageDocs = [];
+    const normalizedMedicineItems = medicineItems.map((item) => ({
+      medicineId: item.medicineId,
+      quantity: Number(item.quantity),
+      price: item.price
+    }));
+    const normalizedServiceItems = serviceItems.map((item) => ({
+      serviceId: item.serviceId,
+      quantity: Number(item.quantity),
+      price: item.price,
+      priceTier: item.priceTier
+    }));
 
-    for (const item of medicineItems) {
-      const quantity = Number(item.quantity);
+    const medicineIds = normalizedMedicineItems.map((item) => item.medicineId);
+    const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
+
+    const [medicineDocs, serviceDocs] = await Promise.all([
+      medicineIds.length
+        ? Medicine.find({
+            _id: { $in: medicineIds },
+            isArchived: { $ne: true }
+          }).session(session)
+        : Promise.resolve([]),
+      serviceIds.length
+        ? Service.find({
+            _id: { $in: serviceIds }
+          }).session(session)
+        : Promise.resolve([])
+    ]);
+
+    const medicineMap = new Map(
+      medicineDocs.map((medicine) => [medicine._id.toString(), medicine])
+    );
+    const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
+
+    for (const item of normalizedMedicineItems) {
+      const quantity = item.quantity;
       validateQuantity(quantity);
 
-      const medicine = await Medicine.findOneAndUpdate(
-        { _id: item.medicineId, stock: { $gte: quantity }, isArchived: { $ne: true } },
-        { $inc: { stock: -quantity } },
-        { new: true, session }
-      );
+      const medicine = medicineMap.get(String(item.medicineId));
 
       if (!medicine) {
+        throw new AppError("Insufficient stock or medicine not found", 400);
+      }
+      if (medicine.stock < quantity) {
         throw new AppError("Insufficient stock or medicine not found", 400);
       }
 
@@ -454,11 +486,29 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
       total += quantity * resolvedPrice;
     }
 
-    for (const item of serviceItems) {
-      const quantity = Number(item.quantity);
+    if (normalizedMedicineItems.length > 0) {
+      const stockUpdateOps = normalizedMedicineItems.map((item) => ({
+        updateOne: {
+          filter: {
+            _id: item.medicineId,
+            stock: { $gte: item.quantity },
+            isArchived: { $ne: true }
+          },
+          update: { $inc: { stock: -item.quantity } }
+        }
+      }));
+
+      const stockUpdateResult = await Medicine.bulkWrite(stockUpdateOps, { session });
+      if (stockUpdateResult.matchedCount !== stockUpdateOps.length) {
+        throw new AppError("Insufficient stock or medicine not found", 400);
+      }
+    }
+
+    for (const item of normalizedServiceItems) {
+      const quantity = item.quantity;
       validateQuantity(quantity);
 
-      const service = await Service.findById(item.serviceId).session(session);
+      const service = serviceMap.get(String(item.serviceId));
       if (!service) {
         throw new AppError("Service not found", 404);
       }
@@ -491,11 +541,11 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
     }
 
     if (medicineUsageDocs.length > 0) {
-      await MedicineUsage.create(medicineUsageDocs, { session });
+      await MedicineUsage.insertMany(medicineUsageDocs, { session });
     }
 
     if (serviceUsageDocs.length > 0) {
-      await ServiceUsage.create(serviceUsageDocs, { session });
+      await ServiceUsage.insertMany(serviceUsageDocs, { session });
     }
 
     const checkId = await createUniqueCheckId(session);
@@ -504,7 +554,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
       [
         {
           checkId,
-          type: resolveCheckType(medicineItems.length, serviceItems.length),
+          type: resolveCheckType(normalizedMedicineItems.length, normalizedServiceItems.length),
           items: checkItems,
           total: Number(total.toFixed(2)),
           patient: normalizedPatient,
@@ -550,12 +600,23 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
     let total = 0;
     const checkItems = [];
     const serviceUsageDocs = [];
+    const normalizedServiceItems = serviceItems.map((item) => ({
+      serviceId: item.serviceId,
+      quantity: Number(item.quantity),
+      price: item.price,
+      priceTier: item.priceTier
+    }));
+    const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
+    const serviceDocs = await Service.find({
+      _id: { $in: serviceIds }
+    }).session(session);
+    const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
 
-    for (const item of serviceItems) {
-      const quantity = Number(item.quantity);
+    for (const item of normalizedServiceItems) {
+      const quantity = item.quantity;
       validateQuantity(quantity);
 
-      const service = await Service.findById(item.serviceId).session(session);
+      const service = serviceMap.get(String(item.serviceId));
       if (!service) {
         throw new AppError("Service not found", 404);
       }
@@ -587,7 +648,7 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
       total += quantity * resolved.price;
     }
 
-    await ServiceUsage.create(serviceUsageDocs, { session });
+    await ServiceUsage.insertMany(serviceUsageDocs, { session });
 
     const checkId = await createUniqueCheckId(session);
     const [check] = await Check.create(

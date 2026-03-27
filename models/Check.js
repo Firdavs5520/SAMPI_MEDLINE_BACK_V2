@@ -84,7 +84,7 @@ const checkSchema = new mongoose.Schema(
       },
       role: {
         type: String,
-        enum: ["nurse", "lor", "delivery", "manager"],
+        enum: ["nurse", "lor", "delivery", "manager", "cashier"],
         required: true,
         immutable: true
       },
@@ -123,3 +123,4 @@ checkSchema.pre("deleteOne", immutableError);
 checkSchema.pre("deleteMany", immutableError);
 
 module.exports = mongoose.model("Check", checkSchema);
+

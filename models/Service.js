@@ -49,7 +49,7 @@ const serviceSchema = new mongoose.Schema(
       },
       role: {
         type: String,
-        enum: ["nurse", "lor", "manager"],
+        enum: ["nurse", "lor", "manager", "cashier"],
         required: true
       },
       name: {
@@ -124,3 +124,4 @@ serviceSchema.pre("validate", function validateNursePriceOptions(next) {
 serviceSchema.index({ name: 1, type: 1 }, { unique: true });
 
 module.exports = mongoose.model("Service", serviceSchema);
+

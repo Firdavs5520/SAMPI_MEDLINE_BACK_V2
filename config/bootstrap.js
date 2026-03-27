@@ -20,6 +20,11 @@ const defaultUsers = [
     name: "Manager User",
     email: "manager@mail.com",
     role: "manager"
+  },
+  {
+    name: "Cashier User",
+    email: "cashier@mail.com",
+    role: "cashier"
   }
 ];
 
