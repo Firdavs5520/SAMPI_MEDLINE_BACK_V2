@@ -85,7 +85,6 @@ const createInitialForm = (date = getTodayString(), type = "lor") => ({
   department: type,
   specialistType: type,
   specialistId: "",
-  specialistName: "",
   patientName: "",
   amount: "",
   paidAmount: "",
@@ -126,7 +125,8 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const today = useMemo(() => getTodayString(), []);
   const sectionMeta = SECTION_META[forcedSection] || SECTION_META["nurse-patients"];
   const lockedType = sectionMeta.lockedType;
-  const isSpecialistSection = forcedSection === "nurse-specialists" || forcedSection === "lor-specialists";
+  const isSpecialistSection =
+    forcedSection === "nurse-specialists" || forcedSection === "lor-specialists";
   const specialistPageType = forcedSection === "nurse-specialists" ? "nurse" : "lor";
 
   const [loading, setLoading] = useState(true);
@@ -179,10 +179,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     };
   };
 
-  const effectiveFilters = useMemo(() => buildEffectiveFilters(filters), [
-    filters,
-    lockedType
-  ]);
+  const effectiveFilters = useMemo(() => buildEffectiveFilters(filters), [filters, lockedType]);
 
   const calculatedDebt = useMemo(() => {
     const amount = safeNumber(form.amount, 0);
@@ -284,19 +281,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
         ...prev,
         specialistType: value,
         specialistId: "",
-        specialistName: "",
         department: value
-      }));
-      return;
-    }
-
-    if (key === "specialistId") {
-      const list = specialistsByType[lockedType || form.specialistType] || [];
-      const selected = list.find((item) => item._id === value);
-      setForm((prev) => ({
-        ...prev,
-        specialistId: value,
-        specialistName: selected?.name || prev.specialistName
       }));
       return;
     }
@@ -312,20 +297,21 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     try {
       const specialistType = lockedType || form.specialistType;
       const department = lockedType || form.department || specialistType;
+      const selectedSpecialist = selectedTypeSpecialists.find((item) => item._id === form.specialistId);
 
       if (!form.patientName.trim()) {
         throw new Error("Bemor F.I.O kiritilishi shart.");
       }
 
-      if (!form.specialistName.trim() && !form.specialistId) {
-        throw new Error("Mutaxassis tanlang yoki nomini kiriting.");
+      if (!form.specialistId || !selectedSpecialist) {
+        throw new Error("Mutaxassis ro'yxatdan tanlanishi shart.");
       }
 
       const payload = {
         department,
         specialistType,
-        specialistId: form.specialistId || undefined,
-        specialistName: form.specialistName.trim(),
+        specialistId: form.specialistId,
+        specialistName: selectedSpecialist.name,
         patientName: form.patientName.trim(),
         amount: safeNumber(form.amount),
         paidAmount:
@@ -368,7 +354,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
       department: lockedType || entry.department || inferredType,
       specialistType: lockedType || inferredType,
       specialistId: entry.specialistId || "",
-      specialistName: entry.specialistName || "",
       patientName: entry.patientName || "",
       amount: safeNumber(entry.amount, "").toString(),
       paidAmount:
@@ -521,9 +506,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     );
   }
 
-  const specialistTitle = lockedType
-    ? sectionMeta.specialistLabel
-    : "Mutaxassis";
+  const specialistTitle = lockedType ? sectionMeta.specialistLabel : "Mutaxassis";
 
   return (
     <div className="space-y-6">
@@ -557,6 +540,156 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           }`}
           hint="Mutaxassislar bo'yicha"
         />
+      </div>
+
+      <div className="card p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-slate-800">
+          {editingEntry ? "Yozuvni tahrirlash" : "Yangi bemor yozuvi"}
+        </h2>
+
+        <form className="mt-4 space-y-3" onSubmit={handleSaveEntry}>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {!lockedType ? (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
+                <select
+                  value={form.department}
+                  onChange={(e) => handleFormChange("department", e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="lor">LOR</option>
+                  <option value="nurse">Nurse</option>
+                </select>
+              </label>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <p className="text-xs text-slate-500">Bo'lim</p>
+                <p className="text-sm font-semibold text-slate-800">{departmentLabels[lockedType]}</p>
+              </div>
+            )}
+
+            {!lockedType ? (
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">
+                  Mutaxassis turi
+                </span>
+                <select
+                  value={form.specialistType}
+                  onChange={(e) => handleFormChange("specialistType", e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="nurse">Nurse</option>
+                  <option value="lor">LOR</option>
+                </select>
+              </label>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <p className="text-xs text-slate-500">Mutaxassis turi</p>
+                <p className="text-sm font-semibold text-slate-800">{specialistTypeLabels[lockedType]}</p>
+              </div>
+            )}
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">
+                {specialistTitle} ro'yxati
+              </span>
+              <select
+                value={form.specialistId}
+                onChange={(e) => handleFormChange("specialistId", e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="">Ro'yxatdan tanlang</option>
+                {selectedTypeSpecialists.map((item) => (
+                  <option key={item._id} value={item._id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <Input
+              label="Sana"
+              type="date"
+              value={form.entryDate}
+              onChange={(e) => handleFormChange("entryDate", e.target.value)}
+            />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Input
+              label="Bemor F.I.O"
+              value={form.patientName}
+              onChange={(e) => handleFormChange("patientName", e.target.value)}
+              placeholder="Masalan: Ali Valiyev"
+            />
+            <Input
+              label="Jami summa"
+              type="number"
+              min="1"
+              max="999999"
+              value={form.amount}
+              onChange={(e) => handleFormChange("amount", e.target.value)}
+              placeholder="Masalan: 120000"
+            />
+            <Input
+              label="To'langan summa"
+              type="number"
+              min="0"
+              max="999999"
+              value={form.paidAmount}
+              onChange={(e) => handleFormChange("paidAmount", e.target.value)}
+              placeholder="Masalan: 100000"
+            />
+            <Input
+              label="Telefon"
+              value={form.patientPhone}
+              onChange={(e) => handleFormChange("patientPhone", e.target.value)}
+              placeholder="Masalan: 90 123 45 67"
+            />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
+              <select
+                value={form.paymentMethod}
+                onChange={(e) => handleFormChange("paymentMethod", e.target.value)}
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="cash">Naqd</option>
+                <option value="card">Karta</option>
+                <option value="transfer">O'tkazma</option>
+              </select>
+            </label>
+
+            <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Qarz</p>
+              <p className="mt-1 text-lg font-bold text-orange-800">{formatCurrency(calculatedDebt)} so'm</p>
+            </div>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-slate-600">Izoh</span>
+            <textarea
+              value={form.note}
+              onChange={(e) => handleFormChange("note", e.target.value)}
+              rows={2}
+              placeholder="Qo'shimcha izoh (ixtiyoriy)"
+              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" loading={savingEntry}>
+              {editingEntry ? "Yangilash" : "Qo'shish"}
+            </Button>
+            {editingEntry ? (
+              <Button type="button" variant="secondary" onClick={resetForm}>
+                Bekor qilish
+              </Button>
+            ) : null}
+          </div>
+        </form>
       </div>
 
       <div className="card p-4 sm:p-5">
@@ -645,163 +778,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           <Button type="submit" variant="secondary">
             Qidirish
           </Button>
-        </form>
-      </div>
-
-      <div className="card p-4 sm:p-5">
-        <h2 className="text-lg font-semibold text-slate-800">
-          {editingEntry ? "Yozuvni tahrirlash" : "Yangi bemor yozuvi"}
-        </h2>
-
-        <form className="mt-4 space-y-3" onSubmit={handleSaveEntry}>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {!lockedType ? (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
-                <select
-                  value={form.department}
-                  onChange={(e) => handleFormChange("department", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="lor">LOR</option>
-                  <option value="nurse">Nurse</option>
-                </select>
-              </label>
-            ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <p className="text-xs text-slate-500">Bo'lim</p>
-                <p className="text-sm font-semibold text-slate-800">{departmentLabels[lockedType]}</p>
-              </div>
-            )}
-
-            {!lockedType ? (
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                  Mutaxassis turi
-                </span>
-                <select
-                  value={form.specialistType}
-                  onChange={(e) => handleFormChange("specialistType", e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="nurse">Nurse</option>
-                  <option value="lor">LOR</option>
-                </select>
-              </label>
-            ) : (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                <p className="text-xs text-slate-500">Mutaxassis turi</p>
-                <p className="text-sm font-semibold text-slate-800">{specialistTypeLabels[lockedType]}</p>
-              </div>
-            )}
-
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                {specialistTitle} ro'yxati
-              </span>
-              <select
-                value={form.specialistId}
-                onChange={(e) => handleFormChange("specialistId", e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="">Ro'yxatdan tanlang</option>
-                {selectedTypeSpecialists.map((item) => (
-                  <option key={item._id} value={item._id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <Input
-              label="Sana"
-              type="date"
-              value={form.entryDate}
-              onChange={(e) => handleFormChange("entryDate", e.target.value)}
-            />
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <Input
-              label={`${specialistTitle} nomi (qo'lda)`}
-              value={form.specialistName}
-              onChange={(e) => handleFormChange("specialistName", e.target.value)}
-              placeholder="Ro'yxatda bo'lmasa yozing"
-            />
-            <Input
-              label="Bemor F.I.O"
-              value={form.patientName}
-              onChange={(e) => handleFormChange("patientName", e.target.value)}
-              placeholder="Masalan: Ali Valiyev"
-            />
-            <Input
-              label="Jami summa"
-              type="number"
-              min="1"
-              max="999999"
-              value={form.amount}
-              onChange={(e) => handleFormChange("amount", e.target.value)}
-              placeholder="Masalan: 120000"
-            />
-            <Input
-              label="To'langan summa"
-              type="number"
-              min="0"
-              max="999999"
-              value={form.paidAmount}
-              onChange={(e) => handleFormChange("paidAmount", e.target.value)}
-              placeholder="Masalan: 100000"
-            />
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
-              <select
-                value={form.paymentMethod}
-                onChange={(e) => handleFormChange("paymentMethod", e.target.value)}
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              >
-                <option value="cash">Naqd</option>
-                <option value="card">Karta</option>
-                <option value="transfer">O'tkazma</option>
-              </select>
-            </label>
-
-            <Input
-              label="Telefon"
-              value={form.patientPhone}
-              onChange={(e) => handleFormChange("patientPhone", e.target.value)}
-              placeholder="Masalan: 90 123 45 67"
-            />
-
-            <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Qarz</p>
-              <p className="mt-1 text-lg font-bold text-orange-800">{formatCurrency(calculatedDebt)} so'm</p>
-            </div>
-          </div>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-600">Izoh</span>
-            <textarea
-              value={form.note}
-              onChange={(e) => handleFormChange("note", e.target.value)}
-              rows={2}
-              placeholder="Qo'shimcha izoh (ixtiyoriy)"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
-            />
-          </label>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" loading={savingEntry}>
-              {editingEntry ? "Yangilash" : "Qo'shish"}
-            </Button>
-            {editingEntry ? (
-              <Button type="button" variant="secondary" onClick={resetForm}>
-                Bekor qilish
-              </Button>
-            ) : null}
-          </div>
         </form>
       </div>
 
