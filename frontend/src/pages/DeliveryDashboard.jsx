@@ -7,13 +7,16 @@ import Table from "../components/Table.jsx";
 import Spinner from "../components/Spinner.jsx";
 import { extractErrorMessage, formatCurrency } from "../utils/format.js";
 
-const initialStockForm = { medicineId: "", quantity: "" };
+const createEmptyRow = () => ({
+  medicineId: "",
+  quantity: ""
+});
 
 function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [savingStock, setSavingStock] = useState(false);
   const [medicines, setMedicines] = useState([]);
-  const [stockForm, setStockForm] = useState(initialStockForm);
+  const [stockRows, setStockRows] = useState([createEmptyRow()]);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -38,24 +41,62 @@ function DeliveryDashboard() {
     setError("");
   };
 
-  const handleRestock = async (e) => {
+  const addRow = () => {
+    setStockRows((prev) => [...prev, createEmptyRow()]);
+  };
+
+  const removeRow = (rowIndex) => {
+    setStockRows((prev) => {
+      const next = prev.filter((_, index) => index !== rowIndex);
+      return next.length === 0 ? [createEmptyRow()] : next;
+    });
+  };
+
+  const updateRow = (rowIndex, key, value) => {
+    setStockRows((prev) =>
+      prev.map((row, index) =>
+        index === rowIndex
+          ? {
+              ...row,
+              [key]: value
+            }
+          : row
+      )
+    );
+  };
+
+  const handleBatchRestock = async (e) => {
     e.preventDefault();
     resetMessages();
     setSavingStock(true);
+
     try {
-      if (!stockForm.medicineId) {
-        throw new Error("Medicine tanlang.");
+      const preparedItems = stockRows
+        .map((row) => ({
+          medicineId: row.medicineId,
+          quantity: Number(row.quantity)
+        }))
+        .filter((row) => row.medicineId || row.quantity);
+
+      if (preparedItems.length === 0) {
+        throw new Error("Kamida bitta dori qatori to'ldiring.");
       }
 
-      const quantity = Number(stockForm.quantity);
-      if (!Number.isFinite(quantity) || quantity <= 0) {
-        throw new Error("Miqdor 0 dan katta bo'lishi kerak.");
-      }
+      preparedItems.forEach((item) => {
+        if (!item.medicineId) {
+          throw new Error("Har bir qatorda dori tanlang.");
+        }
+        if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+          throw new Error("Har bir qatorda miqdor 0 dan katta bo'lishi kerak.");
+        }
+      });
 
-      await medicineService.increaseStock(stockForm.medicineId, quantity);
+      await medicineService.increaseStockBulk(preparedItems);
 
-      setSuccess("Stock muvaffaqiyatli oshirildi.");
-      setStockForm(initialStockForm);
+      setSuccess(
+        `${preparedItems.length} ta qator bo'yicha dori qoldig'i muvaffaqiyatli oshirildi.`
+      );
+      setStockRows([createEmptyRow()]);
       await loadMedicines();
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -71,48 +112,65 @@ function DeliveryDashboard() {
   return (
     <div className="space-y-6">
       <div className="card p-4">
-        <h2 className="text-lg font-semibold text-slate-800">Stock Olib Kelish</h2>
+        <h2 className="text-lg font-semibold text-slate-800">
+          Omborga bir nechta dori kiritish
+        </h2>
         <p className="mb-4 text-sm text-slate-500">
-          Delivery yangi dori nomi qo'shmaydi, faqat nurse qo'shgan dorilarni
-          miqdor bilan to'ldiradi.
+          Delivery yangi dori nomi qo'shmaydi, mavjud dorilar qoldig'ini birdaniga oshiradi.
         </p>
-        <form
-          onSubmit={handleRestock}
-          className="grid gap-3 md:grid-cols-[1fr_180px_auto]"
-        >
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-600">
-              Medicine
-            </span>
-            <select
-              value={stockForm.medicineId}
-              onChange={(e) =>
-                setStockForm((prev) => ({ ...prev, medicineId: e.target.value }))
-              }
-              className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+
+        <form onSubmit={handleBatchRestock} className="space-y-3">
+          {stockRows.map((row, index) => (
+            <div
+              key={`${row.medicineId}-${index}`}
+              className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[1fr_180px_auto]"
             >
-              <option value="">Tanlang</option>
-              {medicines.map((medicine) => (
-                <option key={medicine._id} value={medicine._id}>
-                  {medicine.name} (qoldiq: {medicine.stock})
-                </option>
-              ))}
-            </select>
-          </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">
+                  Dori tanlang
+                </span>
+                <select
+                  value={row.medicineId}
+                  onChange={(e) => updateRow(index, "medicineId", e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="">Tanlang</option>
+                  {medicines.map((medicine) => (
+                    <option key={medicine._id} value={medicine._id}>
+                      {medicine.name} (qoldiq: {medicine.stock})
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <Input
-            label="Keltirilgan miqdor"
-            type="number"
-            min="1"
-            value={stockForm.quantity}
-            onChange={(e) =>
-              setStockForm((prev) => ({ ...prev, quantity: e.target.value }))
-            }
-          />
+              <Input
+                label="Keltirilgan miqdor"
+                type="number"
+                min="1"
+                value={row.quantity}
+                onChange={(e) => updateRow(index, "quantity", e.target.value)}
+              />
 
-          <Button type="submit" className="h-fit self-end" loading={savingStock}>
-            Qoldiqni oshirish
-          </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-fit self-end"
+                onClick={() => removeRow(index)}
+                disabled={stockRows.length === 1}
+              >
+                Qatorni o'chirish
+              </Button>
+            </div>
+          ))}
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" onClick={addRow}>
+              + Qator qo'shish
+            </Button>
+            <Button type="submit" loading={savingStock}>
+              Barchasini omborga kiritish
+            </Button>
+          </div>
         </form>
       </div>
 
@@ -120,7 +178,7 @@ function DeliveryDashboard() {
       <Alert type="error" message={error} />
 
       <div className="card p-4">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Medicine Table</h2>
+        <h2 className="mb-4 text-lg font-semibold text-slate-800">Dorilar ro'yxati</h2>
         <Table
           data={medicines}
           columns={[
@@ -130,13 +188,21 @@ function DeliveryDashboard() {
               label: "Narxi",
               render: (row) => formatCurrency(row.price)
             },
-            {
-              key: "createdBy",
-              label: "Qo'shgan Nurse",
-              render: (row) => row.createdBy?.name || "-"
-            },
             { key: "stock", label: "Qoldiq" },
-            { key: "createdAt", label: "Yaratilgan" }
+            {
+              key: "status",
+              label: "Holat",
+              render: (row) =>
+                row.stock > 0 ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                    Bor
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                    QOLMADI
+                  </span>
+                )
+            }
           ]}
         />
       </div>

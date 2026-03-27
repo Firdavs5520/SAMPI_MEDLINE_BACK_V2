@@ -28,6 +28,13 @@ const medicineService = {
     return data.data;
   },
 
+  async increaseStockBulk(items) {
+    const { data } = await api.patch("/medicines/bulk-increase", {
+      items
+    });
+    return data.data || [];
+  },
+
   async updateStock(medicineId, stock) {
     const { data } = await api.patch(`/medicines/${medicineId}/stock`, {
       stock
