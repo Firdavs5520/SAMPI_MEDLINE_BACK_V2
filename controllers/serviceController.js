@@ -23,4 +23,28 @@ const createService = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: service });
 });
 
-module.exports = { getAllServices, getServiceById, createService };
+const updateService = asyncHandler(async (req, res) => {
+  const service = await serviceCatalogService.updateService({
+    serviceId: req.params.id,
+    name: req.body.name,
+    price: toNumber(req.body.price),
+    user: req.user
+  });
+  res.status(200).json({ success: true, data: service });
+});
+
+const deleteService = asyncHandler(async (req, res) => {
+  const result = await serviceCatalogService.deleteService({
+    serviceId: req.params.id,
+    user: req.user
+  });
+  res.status(200).json({ success: true, data: result });
+});
+
+module.exports = {
+  getAllServices,
+  getServiceById,
+  createService,
+  updateService,
+  deleteService
+};

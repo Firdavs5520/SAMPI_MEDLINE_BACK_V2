@@ -22,6 +22,24 @@ const addMedicine = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: medicine });
 });
 
+const updateMedicine = asyncHandler(async (req, res) => {
+  const medicine = await medicineService.updateMedicine({
+    medicineId: req.params.id,
+    name: req.body.name,
+    price: toNumber(req.body.price),
+    user: req.user
+  });
+  res.status(200).json({ success: true, data: medicine });
+});
+
+const deleteMedicine = asyncHandler(async (req, res) => {
+  const result = await medicineService.deleteMedicine({
+    medicineId: req.params.id,
+    user: req.user
+  });
+  res.status(200).json({ success: true, data: result });
+});
+
 const increaseStock = asyncHandler(async (req, res) => {
   const medicine = await medicineService.increaseStock({
     medicineId: req.params.id,
@@ -42,6 +60,8 @@ module.exports = {
   getAllMedicines,
   getMedicineById,
   addMedicine,
+  updateMedicine,
+  deleteMedicine,
   increaseStock,
   updateStock
 };
