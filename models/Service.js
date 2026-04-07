@@ -8,7 +8,7 @@ const priceRangeValidator = {
       (typeof value === "number" && Number.isFinite(value) && value > 0 && value < 1000000)
     );
   },
-  message: "Price must be > 0 and < 1,000,000"
+  message: "Narx 0 dan katta va 1,000,000 dan kichik bo'lishi kerak"
 };
 
 const nursePriceOptionsSchema = new mongoose.Schema(
@@ -110,7 +110,7 @@ serviceSchema.pre("validate", function validateNursePriceOptions(next) {
 
   if (!isValid && !hasFallback) {
     return next(
-      new Error("Nurse service must include first, second and third prices")
+      new Error("Hamshira xizmati uchun first, second va third narxlari bo'lishi kerak")
     );
   }
 
@@ -124,4 +124,3 @@ serviceSchema.pre("validate", function validateNursePriceOptions(next) {
 serviceSchema.index({ name: 1, type: 1 }, { unique: true });
 
 module.exports = mongoose.model("Service", serviceSchema);
-

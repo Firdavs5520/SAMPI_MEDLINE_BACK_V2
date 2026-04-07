@@ -11,22 +11,22 @@ const getAllMedicines = async ({ includeArchived = false } = {}) => {
 const getMedicineById = async (medicineId) => {
   const medicine = await Medicine.findById(medicineId);
   if (!medicine) {
-    throw new AppError("Medicine not found", 404);
+    throw new AppError("Dori topilmadi", 404);
   }
   return medicine;
 };
 
 const addMedicine = async ({ name, price, user }) => {
   if (!name || typeof name !== "string") {
-    throw new AppError("Medicine name is required", 400);
+    throw new AppError("Dori nomi majburiy", 400);
   }
 
   if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-    throw new AppError("Price must be > 0 and < 1,000,000", 400);
+    throw new AppError("Narx 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
   }
 
   if (!user || user.role !== "nurse") {
-    throw new AppError("Only nurse can add new medicine names", 403);
+    throw new AppError("Yangi dori nomini faqat hamshira qo'sha oladi", 403);
   }
 
   const safeName = name.trim();
@@ -60,12 +60,12 @@ const addMedicine = async ({ name, price, user }) => {
 
 const updateMedicine = async ({ medicineId, name, price, user }) => {
   if (!user || user.role !== "nurse") {
-    throw new AppError("Only nurse can update medicine", 403);
+    throw new AppError("Dorilarni faqat hamshira tahrirlay oladi", 403);
   }
 
   const medicine = await Medicine.findById(medicineId);
   if (!medicine) {
-    throw new AppError("Medicine not found", 404);
+    throw new AppError("Dori topilmadi", 404);
   }
   if (medicine.isArchived) {
     throw new AppError("Bu dori arxivlangan, tahrirlab bo'lmaydi", 400);
@@ -75,20 +75,20 @@ const updateMedicine = async ({ medicineId, name, price, user }) => {
   const hasPrice = price !== undefined && price !== null && price !== "";
 
   if (!hasName && !hasPrice) {
-    throw new AppError("At least one field (name or price) is required", 400);
+    throw new AppError("Kamida bitta maydon (nomi yoki narxi) kiritilishi kerak", 400);
   }
 
   if (hasName) {
     const safeName = name.trim();
     if (!safeName) {
-      throw new AppError("Medicine name is required", 400);
+      throw new AppError("Dori nomi majburiy", 400);
     }
     medicine.name = safeName;
   }
 
   if (hasPrice) {
     if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-      throw new AppError("Price must be > 0 and < 1,000,000", 400);
+      throw new AppError("Narx 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
     }
     medicine.price = price;
   }
@@ -99,12 +99,12 @@ const updateMedicine = async ({ medicineId, name, price, user }) => {
 
 const deleteMedicine = async ({ medicineId, user }) => {
   if (!user || user.role !== "nurse") {
-    throw new AppError("Only nurse can delete medicine", 403);
+    throw new AppError("Dorilarni faqat hamshira o'chira oladi", 403);
   }
 
   const medicine = await Medicine.findById(medicineId);
   if (!medicine) {
-    throw new AppError("Medicine not found", 404);
+    throw new AppError("Dori topilmadi", 404);
   }
   if (medicine.isArchived) {
     return { archived: true, medicineId: String(medicine._id) };
@@ -130,7 +130,7 @@ const deleteMedicine = async ({ medicineId, user }) => {
 
 const increaseStock = async ({ medicineId, quantity }) => {
   if (typeof quantity !== "number" || quantity <= 0) {
-    throw new AppError("Quantity must be greater than 0", 400);
+    throw new AppError("Miqdor 0 dan katta bo'lishi kerak", 400);
   }
 
   const medicine = await Medicine.findOneAndUpdate(
@@ -140,7 +140,7 @@ const increaseStock = async ({ medicineId, quantity }) => {
   );
 
   if (!medicine) {
-    throw new AppError("Medicine not found", 404);
+    throw new AppError("Dori topilmadi", 404);
   }
 
   return medicine;
@@ -158,7 +158,7 @@ const increaseStockBulk = async ({ items }) => {
   const normalizedItems = items.map((item) => {
     const quantity = Number(item?.quantity);
     if (typeof item?.medicineId !== "string" || !item.medicineId.trim()) {
-      throw new AppError("medicineId majburiy", 400);
+    throw new AppError("Dori identifikatori majburiy", 400);
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new AppError("Har bir miqdor 0 dan katta bo'lishi kerak", 400);
@@ -198,7 +198,7 @@ const increaseStockBulk = async ({ items }) => {
     if (medicines.length !== medicineIds.length) {
       const foundSet = new Set(medicines.map((item) => String(item._id)));
       const missingIds = medicineIds.filter((id) => !foundSet.has(String(id)));
-      throw new AppError(`Medicine not found: ${missingIds.join(", ")}`, 404);
+      throw new AppError(`Dori topilmadi: ${missingIds.join(", ")}`, 404);
     }
 
     const operations = groupedItems.map((item) => ({
@@ -239,7 +239,7 @@ const increaseStockBulk = async ({ items }) => {
 
 const updateStock = async ({ medicineId, stock }) => {
   if (typeof stock !== "number" || stock < 0) {
-    throw new AppError("Stock must be a number and cannot be negative", 400);
+    throw new AppError("Qoldiq son bo'lishi va manfiy bo'lmasligi kerak", 400);
   }
 
   const medicine = await Medicine.findOneAndUpdate(
@@ -249,7 +249,7 @@ const updateStock = async ({ medicineId, stock }) => {
   );
 
   if (!medicine) {
-    throw new AppError("Medicine not found", 404);
+    throw new AppError("Dori topilmadi", 404);
   }
 
   return medicine;

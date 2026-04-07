@@ -9,7 +9,7 @@ const createToken = (userId) =>
 
 const login = async ({ email, password }) => {
   if (!email || !password) {
-    throw new AppError("Email and password are required", 400);
+    throw new AppError("Email va parol majburiy", 400);
   }
 
   const user = await User.findOne({ email: email.toLowerCase().trim() }).select(
@@ -17,7 +17,7 @@ const login = async ({ email, password }) => {
   );
 
   if (!user || !(await user.comparePassword(password))) {
-    throw new AppError("Invalid email or password", 401);
+    throw new AppError("Email yoki parol noto'g'ri", 401);
   }
 
   const token = createToken(user._id);

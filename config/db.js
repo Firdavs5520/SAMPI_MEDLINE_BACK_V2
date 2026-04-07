@@ -29,12 +29,12 @@ const connectDB = async () => {
   const mongoUri = normalizeMongoUri(process.env.MONGO_URI || process.env.MONGODB_URI);
 
   if (!mongoUri) {
-    throw new Error("MONGO_URI is not defined in environment variables");
+    throw new Error("MONGO_URI muhit o'zgaruvchilarida ko'rsatilmagan");
   }
 
   if (!mongoUri.startsWith("mongodb://") && !mongoUri.startsWith("mongodb+srv://")) {
     throw new Error(
-      'Invalid MONGO_URI format. URI must start with "mongodb://" or "mongodb+srv://"'
+      "MONGO_URI formati noto'g'ri. URI \"mongodb://\" yoki \"mongodb+srv://\" bilan boshlanishi kerak"
     );
   }
 

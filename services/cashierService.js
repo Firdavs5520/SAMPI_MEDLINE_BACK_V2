@@ -19,7 +19,7 @@ const normalizeDateString = (value) => {
   const safe = String(value || "").trim();
   if (!safe) return toTashkentDateString(new Date());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(safe)) {
-    throw new AppError("date must be in YYYY-MM-DD format", 400);
+    throw new AppError("Sana YYYY-MM-DD formatida bo'lishi kerak", 400);
   }
   return safe;
 };
@@ -31,7 +31,7 @@ const parseDateParts = (dateString) => {
   const day = Number(dayPart);
 
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    throw new AppError("Invalid date", 400);
+    throw new AppError("Sana noto'g'ri", 400);
   }
 
   return { year, month, day };
@@ -63,7 +63,7 @@ const getDateRange = (dateString) => {
   const { year, month, day } = parseDateParts(safeDateString);
   const start = toUtcDateFromTashkent(year, month, day, 0, 0, 0, 0);
   if (Number.isNaN(start.getTime())) {
-    throw new AppError("Invalid date", 400);
+    throw new AppError("Sana noto'g'ri", 400);
   }
 
   const end = toUtcDateFromTashkent(year, month, day, 23, 59, 59, 999);
@@ -91,7 +91,7 @@ const normalizeDepartment = (value, { allowAll = false } = {}) => {
   if (!safe) return allowAll ? "all" : null;
   if (allowAll && safe === "all") return "all";
   if (!DEPARTMENTS.includes(safe)) {
-    throw new AppError("department must be lor, nurse or procedure", 400);
+    throw new AppError("Bo'lim lor, nurse yoki procedure bo'lishi kerak", 400);
   }
   return safe === "procedure" ? "nurse" : safe;
 };
@@ -104,7 +104,7 @@ const normalizeSpecialistType = (value, { allowAll = false } = {}) => {
   if (!safe) return allowAll ? "all" : null;
   if (allowAll && safe === "all") return "all";
   if (!SPECIALIST_TYPES.includes(safe)) {
-    throw new AppError("specialistType must be nurse or lor", 400);
+    throw new AppError("Mutaxassis turi nurse yoki lor bo'lishi kerak", 400);
   }
   return safe;
 };
@@ -117,7 +117,7 @@ const normalizePaymentMethod = (value, { allowAll = false } = {}) => {
   if (!safe) return allowAll ? "all" : "cash";
   if (allowAll && safe === "all") return "all";
   if (!PAYMENT_METHODS.includes(safe)) {
-    throw new AppError("paymentMethod must be cash, card, transfer, mixed or debt", 400);
+    throw new AppError("To'lov usuli cash, card, transfer, mixed yoki debt bo'lishi kerak", 400);
   }
   return safe;
 };
@@ -128,7 +128,7 @@ const normalizeTimeScope = (value) => {
     .toLowerCase();
 
   if (!TIME_SCOPES.includes(safe)) {
-    throw new AppError("timeScope must be all, active or history", 400);
+    throw new AppError("timeScope all, active yoki history bo'lishi kerak", 400);
   }
 
   return safe;
@@ -137,7 +137,7 @@ const normalizeTimeScope = (value) => {
 const validateAmount = (amount) => {
   const parsed = Number(amount);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 1000000) {
-    throw new AppError("amount must be > 0 and < 1,000,000", 400);
+    throw new AppError("Summa 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
   }
   return parsed;
 };
@@ -150,7 +150,7 @@ const resolvePaidAndDebt = (amount, paidInput) => {
       : Number(paidInput);
 
   if (!Number.isFinite(paidRaw) || paidRaw < 0 || paidRaw > safeAmount) {
-    throw new AppError("paidAmount must be >= 0 and <= amount", 400);
+    throw new AppError("To'langan summa 0 dan kichik bo'lmasligi va jami summadan oshmasligi kerak", 400);
   }
 
   const paidAmount = Number(paidRaw.toFixed(2));
@@ -161,13 +161,13 @@ const resolvePaidAndDebt = (amount, paidInput) => {
 
 const assertCashierReadPermission = (user) => {
   if (!user || !["cashier", "manager"].includes(user.role)) {
-    throw new AppError("Access denied for this role", 403);
+    throw new AppError("Bu rol uchun ruxsat yo'q", 403);
   }
 };
 
 const assertCashierWritePermission = (user) => {
   if (!user || user.role !== "cashier") {
-    throw new AppError("Only cashier can modify cashbook entries", 403);
+    throw new AppError("Kassa yozuvlarini faqat kassir o'zgartira oladi", 403);
   }
 };
 
@@ -266,10 +266,10 @@ const resolveSpecialistData = async ({ specialistId, specialistName, specialistT
   if (safeSpecialistId) {
     const specialist = await CashierSpecialist.findById(safeSpecialistId);
     if (!specialist) {
-      throw new AppError("Selected specialist not found", 404);
+      throw new AppError("Tanlangan mutaxassis topilmadi", 404);
     }
     if (specialist.type !== safeSpecialistType) {
-      throw new AppError("Selected specialist type mismatch", 400);
+      throw new AppError("Tanlangan mutaxassis turi mos emas", 400);
     }
 
     return {
@@ -280,7 +280,7 @@ const resolveSpecialistData = async ({ specialistId, specialistName, specialistT
   }
 
   if (!safeSpecialistName) {
-    throw new AppError("specialistName is required", 400);
+    throw new AppError("Mutaxassis nomi majburiy", 400);
   }
 
   return {
@@ -504,7 +504,7 @@ const createSpecialist = async ({ payload, user }) => {
   const type = normalizeSpecialistType(payload.type);
   const name = String(payload.name || "").trim();
   if (!name) {
-    throw new AppError("Specialist name is required", 400);
+    throw new AppError("Mutaxassis nomi majburiy", 400);
   }
 
   try {
@@ -530,7 +530,7 @@ const deleteSpecialist = async ({ specialistId, user }) => {
 
   const specialist = await CashierSpecialist.findById(specialistId);
   if (!specialist) {
-    throw new AppError("Specialist not found", 404);
+    throw new AppError("Mutaxassis topilmadi", 404);
   }
 
   const usedCount = await CashierEntry.countDocuments({ specialistId: specialist._id });
@@ -547,7 +547,7 @@ const createEntry = async ({ payload, user }) => {
 
   const patientName = String(payload.patientName || "").trim();
   if (!patientName) {
-    throw new AppError("patientName is required", 400);
+    throw new AppError("Bemor F.I.O majburiy", 400);
   }
 
   const specialistType = normalizeSpecialistType(payload.specialistType || payload.department);
@@ -588,13 +588,13 @@ const updateEntry = async ({ entryId, payload, user }) => {
 
   const entry = await CashierEntry.findById(entryId);
   if (!entry) {
-    throw new AppError("Cashier entry not found", 404);
+    throw new AppError("Kassa yozuvi topilmadi", 404);
   }
 
   if (payload.patientName !== undefined) {
     const patientName = String(payload.patientName || "").trim();
     if (!patientName) {
-      throw new AppError("patientName is required", 400);
+      throw new AppError("Bemor F.I.O majburiy", 400);
     }
     entry.patientName = patientName;
   }
@@ -663,7 +663,7 @@ const deleteEntry = async ({ entryId, user }) => {
 
   const entry = await CashierEntry.findById(entryId);
   if (!entry) {
-    throw new AppError("Cashier entry not found", 404);
+    throw new AppError("Kassa yozuvi topilmadi", 404);
   }
 
   await CashierEntry.deleteOne({ _id: entryId });

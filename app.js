@@ -52,7 +52,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 app.get("/health", (req, res) => {
-  res.status(200).json({ success: true, message: "Sampi Medline API is running" });
+  res.status(200).json({ success: true, message: "Sampi Medline API ishlayapti" });
 });
 
 app.use("/api/auth", authRoutes);
