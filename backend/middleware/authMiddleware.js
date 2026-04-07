@@ -14,19 +14,19 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 
   if (!token) {
-    throw new AppError("Not authorized, token missing", 401);
+    throw new AppError("Ruxsat yo'q, token topilmadi", 401);
   }
 
   let decoded;
   try {
     decoded = jwt.verify(token, process.env.JWT_SECRET);
   } catch (error) {
-    throw new AppError("Invalid or expired token", 401);
+    throw new AppError("Token noto'g'ri yoki muddati tugagan", 401);
   }
 
   const user = await User.findById(decoded.id).select("-password");
   if (!user) {
-    throw new AppError("User not found for token", 401);
+    throw new AppError("Token uchun foydalanuvchi topilmadi", 401);
   }
 
   req.user = user;

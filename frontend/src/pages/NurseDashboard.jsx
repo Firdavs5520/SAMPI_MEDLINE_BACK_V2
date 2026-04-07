@@ -273,7 +273,7 @@ function NurseDashboard() {
 
       const written = writeCheckToPrintTab(printTab, result.check);
       if (!written) {
-        setError("Brauzer yangi tabni blokladi. Pop-up ruxsatini yoqing.");
+        setError("Brauzer yangi oynani blokladi. Oynaga ruxsatni yo'qing.");
       }
 
       setSuccess("Chek muvaffaqiyatli yaratildi.");

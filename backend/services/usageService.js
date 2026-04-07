@@ -15,13 +15,13 @@ const SERVICE_PRICE_TIER_LABELS = {
 
 const validateQuantity = (quantity) => {
   if (typeof quantity !== "number" || quantity <= 0) {
-    throw new AppError("Quantity must be greater than 0", 400);
+    throw new AppError("Miqdor 0 dan katta bo'lishi kerak", 400);
   }
 };
 
 const validatePrice = (price) => {
   if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-    throw new AppError("Price must be > 0 and < 1,000,000", 400);
+    throw new AppError("Narx 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
   }
 };
 
@@ -47,7 +47,7 @@ const normalizePriceTier = (value) => {
 
   const normalized = String(value).trim().toLowerCase();
   if (!NURSE_PRICE_TIERS.includes(normalized)) {
-    throw new AppError("priceTier must be first, second or third", 400);
+    throw new AppError("Narx bosqichi first, second yoki third bo'lishi kerak", 400);
   }
 
   return normalized;
@@ -93,7 +93,7 @@ const normalizePatient = (patient) => {
   const lastName = patient?.lastName?.trim?.() || "";
 
   if (!firstName || !lastName) {
-    throw new AppError("Patient firstName and lastName are required", 400);
+    throw new AppError("Bemorning ismi va familiyasi majburiy", 400);
   }
 
   return {
@@ -109,7 +109,7 @@ const normalizeOptionalPatient = (patient) => {
 
   if (!firstName && !lastName) return null;
   if (!firstName || !lastName) {
-    throw new AppError("Patient firstName and lastName are required", 400);
+    throw new AppError("Bemorning ismi va familiyasi majburiy", 400);
   }
 
   return {
@@ -127,11 +127,11 @@ const normalizeLorIdentity = (value) => {
     .toLowerCase();
 
   if (!normalized) {
-    throw new AppError("lorIdentity is required for LOR", 400);
+    throw new AppError("LOR uchun lorIdentity majburiy", 400);
   }
 
   if (!["lor1", "lor2"].includes(normalized)) {
-    throw new AppError("lorIdentity must be lor1 or lor2", 400);
+    throw new AppError("lorIdentity lor1 yoki lor2 bo'lishi kerak", 400);
   }
 
   return normalized;
@@ -148,7 +148,7 @@ const createUniqueCheckId = async (session) => {
     if (!exists) return checkId;
   }
 
-  throw new AppError("Could not generate unique check ID", 500);
+  throw new AppError("Yagona chek ID yaratib bo'lmadi", 500);
 };
 
 const buildCreatedByPayload = (user, options = {}) => {
@@ -170,7 +170,7 @@ const assertUniqueIds = (items, key, message) => {
   const seen = new Set();
   for (const item of items) {
     if (!item?.[key]) {
-      throw new AppError(`Missing ${key} in request item`, 400);
+      throw new AppError(`Yetishmayapti: ${key} so'rov elementida`, 400);
     }
     if (seen.has(item[key])) {
       throw new AppError(message, 400);
@@ -187,11 +187,11 @@ const resolveCheckType = (medicineCount, serviceCount) => {
 
 const enforceServiceRoleRule = (service, userRole) => {
   if (userRole === "nurse" && service.type !== "nurse") {
-    throw new AppError("Nurse can only use nurse services", 403);
+    throw new AppError("Hamshira faqat nurse xizmatlaridan foydalana oladi", 403);
   }
 
   if (userRole === "lor" && service.type !== "lor") {
-    throw new AppError("LOR can only use lor services", 403);
+    throw new AppError("LOR faqat lor xizmatlaridan foydalana oladi", 403);
   }
 };
 
@@ -205,7 +205,7 @@ const enforceLorServiceOwnership = (service, user) => {
   if (!ownerId) return;
 
   if (ownerId !== currentUserId) {
-    throw new AppError("LOR can only use services created by themselves", 403);
+    throw new AppError("LOR faqat o'zi qo'shgan xizmatlardan foydalana oladi", 403);
   }
 };
 
@@ -223,7 +223,7 @@ const useMedicine = async ({ medicineId, quantity, price, user }) => {
     );
 
     if (!medicine) {
-      throw new AppError("Insufficient stock or medicine not found", 400);
+      throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
     }
 
     const resolvedPrice = resolvePrice(price, medicine.price, medicine.name);
@@ -293,7 +293,7 @@ const useService = async ({
   try {
     const service = await Service.findById(serviceId).session(session);
     if (!service) {
-      throw new AppError("Service not found", 404);
+      throw new AppError("Xizmat topilmadi", 404);
     }
 
     enforceServiceRoleRule(service, user.role);
@@ -356,7 +356,7 @@ const useService = async ({
 
 const getMyChecks = async ({ user, search = "", lorIdentity }) => {
   if (!user) {
-    throw new AppError("User is required", 401);
+    throw new AppError("Foydalanuvchi majburiy", 401);
   }
 
   const filter = {
@@ -390,14 +390,14 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
 
 const createNurseCheckout = async ({ medicines = [], services = [], patient, user }) => {
   if (!user || user.role !== "nurse") {
-    throw new AppError("Only nurse can create this checkout", 403);
+    throw new AppError("Bu chekni faqat hamshira yaratishi mumkin", 403);
   }
 
   const medicineItems = Array.isArray(medicines) ? medicines : [];
   const serviceItems = Array.isArray(services) ? services : [];
 
   if (medicineItems.length === 0 && serviceItems.length === 0) {
-    throw new AppError("At least one medicine or service must be selected", 400);
+    throw new AppError("Kamida bitta dori yoki xizmat tanlanishi kerak", 400);
   }
 
   assertUniqueIds(
@@ -462,10 +462,10 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
       const medicine = medicineMap.get(String(item.medicineId));
 
       if (!medicine) {
-        throw new AppError("Insufficient stock or medicine not found", 400);
+        throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
       }
       if (medicine.stock < quantity) {
-        throw new AppError("Insufficient stock or medicine not found", 400);
+        throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
       }
 
       const resolvedPrice = resolvePrice(item.price, medicine.price, medicine.name);
@@ -500,7 +500,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
 
       const stockUpdateResult = await Medicine.bulkWrite(stockUpdateOps, { session });
       if (stockUpdateResult.matchedCount !== stockUpdateOps.length) {
-        throw new AppError("Insufficient stock or medicine not found", 400);
+        throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
       }
     }
 
@@ -510,7 +510,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
 
       const service = serviceMap.get(String(item.serviceId));
       if (!service) {
-        throw new AppError("Service not found", 404);
+        throw new AppError("Xizmat topilmadi", 404);
       }
 
       enforceServiceRoleRule(service, user.role);
@@ -576,7 +576,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
 
 const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) => {
   if (!user || user.role !== "lor") {
-    throw new AppError("Only lor can create this checkout", 403);
+    throw new AppError("Bu chekni faqat lor yaratishi mumkin", 403);
   }
 
   const serviceItems = Array.isArray(services) ? services : [];
@@ -618,7 +618,7 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
 
       const service = serviceMap.get(String(item.serviceId));
       if (!service) {
-        throw new AppError("Service not found", 404);
+        throw new AppError("Xizmat topilmadi", 404);
       }
 
       enforceServiceRoleRule(service, user.role);

@@ -4,7 +4,7 @@ const AppError = require("../utils/AppError");
 
 const validatePrice = (price) => {
   if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-    throw new AppError("Price must be > 0 and < 1,000,000", 400);
+    throw new AppError("Narx 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
   }
 };
 
@@ -37,29 +37,29 @@ const getAllServices = async ({ user } = {}) => {
 const getServiceById = async (serviceId) => {
   const service = await Service.findById(serviceId);
   if (!service) {
-    throw new AppError("Service not found", 404);
+    throw new AppError("Xizmat topilmadi", 404);
   }
   return service;
 };
 
 const createService = async ({ name, type, price, priceOptions, user }) => {
   if (!name || typeof name !== "string") {
-    throw new AppError("Service name is required", 400);
+    throw new AppError("Xizmat nomi majburiy", 400);
   }
   if (!["nurse", "lor"].includes(type)) {
-    throw new AppError('Service type must be "nurse" or "lor"', 400);
+    throw new AppError("Xizmat turi \"nurse\" yoki \"lor\" bo'lishi kerak", 400);
   }
   if (!user) {
-    throw new AppError("User is required", 401);
+    throw new AppError("Foydalanuvchi majburiy", 401);
   }
   if (user.role === "lor" && type !== "lor") {
-    throw new AppError("LOR can only add lor services", 403);
+    throw new AppError("LOR faqat lor xizmatlarini qo'sha oladi", 403);
   }
   if (user.role === "nurse" && type !== "nurse") {
-    throw new AppError("Nurse can only add nurse services", 403);
+    throw new AppError("Hamshira faqat nurse xizmatlarini qo'sha oladi", 403);
   }
   if (!["manager", "lor", "nurse"].includes(user.role)) {
-    throw new AppError("Only manager, lor or nurse can add services", 403);
+    throw new AppError("Xizmatni faqat menejer, lor yoki hamshira qo'sha oladi", 403);
   }
 
   let normalizedPrice = Number(price);
@@ -97,19 +97,19 @@ const assertServiceOwnership = (service, user) => {
 
 const updateService = async ({ serviceId, name, price, priceOptions, user }) => {
   if (!user || !["nurse", "lor"].includes(user.role)) {
-    throw new AppError("Only nurse or lor can update service", 403);
+    throw new AppError("Xizmatni faqat hamshira yoki lor tahrirlay oladi", 403);
   }
 
   const service = await Service.findById(serviceId);
   if (!service) {
-    throw new AppError("Service not found", 404);
+    throw new AppError("Xizmat topilmadi", 404);
   }
 
   if (user.role === "nurse" && service.type !== "nurse") {
-    throw new AppError("Nurse can only update nurse services", 403);
+    throw new AppError("Hamshira faqat nurse xizmatlarini tahrirlay oladi", 403);
   }
   if (user.role === "lor" && service.type !== "lor") {
-    throw new AppError("LOR can only update lor services", 403);
+    throw new AppError("LOR faqat lor xizmatlarini tahrirlay oladi", 403);
   }
 
   if (user.role === "lor") {
@@ -126,13 +126,13 @@ const updateService = async ({ serviceId, name, price, priceOptions, user }) => 
       priceOptions.third !== undefined);
 
   if (!hasName && !hasPrice && !hasPriceOptions) {
-    throw new AppError("At least one field is required", 400);
+    throw new AppError("Kamida bitta maydon kiritilishi kerak", 400);
   }
 
   if (hasName) {
     const safeName = name.trim();
     if (!safeName) {
-      throw new AppError("Service name is required", 400);
+      throw new AppError("Xizmat nomi majburiy", 400);
     }
     service.name = safeName;
   }
@@ -175,19 +175,19 @@ const updateService = async ({ serviceId, name, price, priceOptions, user }) => 
 
 const deleteService = async ({ serviceId, user }) => {
   if (!user || !["nurse", "lor"].includes(user.role)) {
-    throw new AppError("Only nurse or lor can delete service", 403);
+    throw new AppError("Xizmatni faqat hamshira yoki lor o'chira oladi", 403);
   }
 
   const service = await Service.findById(serviceId);
   if (!service) {
-    throw new AppError("Service not found", 404);
+    throw new AppError("Xizmat topilmadi", 404);
   }
 
   if (user.role === "nurse" && service.type !== "nurse") {
-    throw new AppError("Nurse can only delete nurse services", 403);
+    throw new AppError("Hamshira faqat nurse xizmatlarini o'chira oladi", 403);
   }
   if (user.role === "lor" && service.type !== "lor") {
-    throw new AppError("LOR can only delete lor services", 403);
+    throw new AppError("LOR faqat lor xizmatlarini o'chira oladi", 403);
   }
 
   if (user.role === "lor") {

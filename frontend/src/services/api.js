@@ -35,7 +35,7 @@ api.interceptors.response.use(
     const message =
       error.response?.data?.message ||
       (error.request
-        ? "Network xatosi. Serverga ulanib bo'lmadi."
+        ? "Tarmoq xatosi. Serverga ulanib bo'lmadi."
         : "Noma'lum xatolik yuz berdi.");
 
     return Promise.reject(new Error(message));

@@ -117,7 +117,7 @@ function LorServicesPage() {
         throw new Error("Bemor ismi va familiyasini kiriting.");
       }
       if (!lorIdentity) {
-        throw new Error("LOR tanlovi topilmadi. Qayta login qiling.");
+        throw new Error("LOR tanlovi topilmadi. Qayta kirib chiqing.");
       }
       if (selectedServiceIds.length === 0) {
         throw new Error("Kamida bitta xizmat tanlang.");
@@ -152,7 +152,7 @@ function LorServicesPage() {
 
       const written = writeCheckToPrintTab(printTab, result.check);
       if (!written) {
-        setError("Brauzer yangi tabni blokladi. Pop-up ruxsatini yoqing.");
+        setError("Brauzer yangi oynani blokladi. Oynaga ruxsatni yo'qing.");
       }
     } catch (err) {
       closePrintTab(printTab);
@@ -171,7 +171,7 @@ function LorServicesPage() {
       <div className="card p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-slate-800">1-qadam: Xizmat tanlash</h2>
         <p className="mb-2 text-sm text-slate-500">
-          Xizmatlarni button orqali tez tanlang.
+          Xizmatlarni tugma orqali tez tanlang.
         </p>
         <p className="mb-4 text-xs font-semibold text-slate-500">
           Tanlangan LOR: {lorIdentity ? lorIdentity.toUpperCase() : "-"}

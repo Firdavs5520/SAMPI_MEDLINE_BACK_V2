@@ -48,7 +48,7 @@ const checkSchema = new mongoose.Schema(
       type: [checkItemSchema],
       validate: {
         validator: (val) => Array.isArray(val) && val.length > 0,
-        message: "Check must include at least one item"
+        message: "Chekda kamida bitta element bo'lishi kerak"
       },
       immutable: true
     },
@@ -111,7 +111,7 @@ const checkSchema = new mongoose.Schema(
 );
 
 const immutableError = () => {
-  throw new Error("Checks are immutable and cannot be modified or deleted");
+  throw new Error("Chek o'zgarmas, uni tahrirlash yoki o'chirish mumkin emas");
 };
 
 checkSchema.pre("findOneAndUpdate", immutableError);
@@ -123,4 +123,3 @@ checkSchema.pre("deleteOne", immutableError);
 checkSchema.pre("deleteMany", immutableError);
 
 module.exports = mongoose.model("Check", checkSchema);
-

@@ -25,7 +25,7 @@ function LoginPage() {
     setError("");
 
     if (!form.email || !form.password) {
-      setError("Email va password kiritilishi shart.");
+      setError("Email va parol kiritilishi shart.");
       return;
     }
 
@@ -52,9 +52,9 @@ function LoginPage() {
             onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
           />
           <Input
-            label="Password"
+            label="Parol"
             type="password"
-            placeholder="••••••••"
+            placeholder="********"
             value={form.password}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, password: e.target.value }))
@@ -63,9 +63,7 @@ function LoginPage() {
 
           <Alert type="error" message={error} />
 
-          <Button type="submit" loading={loading} className="w-full">
-            Login
-          </Button>
+          <Button type="submit" loading={loading} className="w-full">Kirish</Button>
         </form>
       </div>
     </div>

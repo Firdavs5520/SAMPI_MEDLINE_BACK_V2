@@ -2,27 +2,27 @@ const User = require("../models/User");
 
 const defaultUsers = [
   {
-    name: "Nurse User",
+    name: "Hamshira",
     email: "nurse@mail.com",
     role: "nurse"
   },
   {
-    name: "LOR Doctor",
+    name: "LOR shifokor",
     email: "lor@mail.com",
     role: "lor"
   },
   {
-    name: "Delivery User",
+    name: "Yetkazuvchi",
     email: "delivery@mail.com",
     role: "delivery"
   },
   {
-    name: "Manager User",
+    name: "Menejer",
     email: "manager@mail.com",
     role: "manager"
   },
   {
-    name: "Cashier User",
+    name: "Kassir",
     email: "cashier@mail.com",
     role: "cashier"
   }
@@ -41,6 +41,14 @@ const bootstrapDefaultUsers = async () => {
         ...userData,
         password: defaultPassword
       });
+      continue;
+    }
+
+    const shouldUpdate = exists.name !== userData.name || exists.role !== userData.role;
+    if (shouldUpdate) {
+      exists.name = userData.name;
+      exists.role = userData.role;
+      await exists.save();
     }
   }
 };

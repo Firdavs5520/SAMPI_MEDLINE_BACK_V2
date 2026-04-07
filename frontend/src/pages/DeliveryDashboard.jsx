@@ -117,7 +117,7 @@ function DeliveryDashboard() {
       <div className="card p-4">
         <h2 className="text-lg font-semibold text-slate-800">1-qadam: Dorilarni tanlang</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Kuryer bir nechta dorini button orqali tanlaydi.
+          Kuryer bir nechta dorini tugma orqali tanlaydi.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -136,7 +136,7 @@ function DeliveryDashboard() {
               >
                 <p className="font-semibold text-slate-800">{medicine.name}</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Hozirgi qoldiq: {medicine.stock}
+                  Ho'zirgi qoldiq: {medicine.stock}
                 </p>
                 <p className="text-xs text-slate-500">
                   Narx: {medicine.price ? formatCurrency(medicine.price) : "-"}
@@ -153,7 +153,7 @@ function DeliveryDashboard() {
             2-qadam: Tanlangan dorilar miqdorini kiriting
           </h2>
           <p className="mb-4 text-sm text-slate-500">
-            Har bir tanlangan doriga keltirilgan miqdorni yozing.
+            Har bir tanlangan doriga keltirilgan miqdorni yo'zing.
           </p>
 
           <div className="space-y-3">
@@ -169,7 +169,7 @@ function DeliveryDashboard() {
                   <div>
                     <p className="font-medium text-slate-800">{medicine?.name}</p>
                     <p className="text-xs text-slate-500">
-                      Hozirgi qoldiq: {medicine?.stock}
+                      Ho'zirgi qoldiq: {medicine?.stock}
                     </p>
                   </div>
 
