@@ -36,7 +36,9 @@ export const sidebarMenus = {
     { label: "Nurse bemor qo'shish", path: "/cashier/nurse-patients", end: true },
     { label: "LOR bemor qo'shish", path: "/cashier/lor-patients", end: true },
     { label: "Nurse yozuvlari", path: "/cashier/nurse-entries", end: true },
+    { label: "Nurse tarixi", path: "/cashier/nurse-history", end: true },
     { label: "LOR yozuvlari", path: "/cashier/lor-entries", end: true },
+    { label: "LOR tarixi", path: "/cashier/lor-history", end: true },
     { label: "Nurse shifokorlar", path: "/cashier/nurse-specialists", end: true },
     { label: "LOR shifokorlar", path: "/cashier/lor-specialists", end: true },
     { label: "Kassa jurnali", path: "/cashier/journal", end: true }

@@ -23,13 +23,25 @@ const SECTION_META = {
   },
   "nurse-entries": {
     title: "Nurse yozuvlari",
-    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida, qolganlari tarixda saqlanadi.",
+    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida ko'rsatiladi.",
+    lockedType: "nurse",
+    specialistLabel: "Medsestra"
+  },
+  "nurse-history": {
+    title: "Nurse tarixi",
+    subtitle: "Nurse bo'yicha 08:00-20:00 dan tashqari yozuvlar tarixi.",
     lockedType: "nurse",
     specialistLabel: "Medsestra"
   },
   "lor-entries": {
     title: "LOR yozuvlari",
-    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida, qolganlari tarixda saqlanadi.",
+    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida ko'rsatiladi.",
+    lockedType: "lor",
+    specialistLabel: "Vrach"
+  },
+  "lor-history": {
+    title: "LOR tarixi",
+    subtitle: "LOR bo'yicha 08:00-20:00 dan tashqari yozuvlar tarixi.",
     lockedType: "lor",
     specialistLabel: "Vrach"
   },
@@ -165,13 +177,22 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const isSpecialistSection =
     forcedSection === "nurse-specialists" || forcedSection === "lor-specialists";
   const isFormSection = forcedSection === "nurse-patients" || forcedSection === "lor-patients";
+  const isHistorySection = forcedSection === "nurse-history" || forcedSection === "lor-history";
   const isEntriesSection =
+    forcedSection === "nurse-entries" ||
+    forcedSection === "nurse-history" ||
+    forcedSection === "lor-entries" ||
+    forcedSection === "lor-history" ||
+    forcedSection === "journal";
+  const isCurrentEntriesSection =
     forcedSection === "nurse-entries" ||
     forcedSection === "lor-entries" ||
     forcedSection === "journal";
   const specialistPageType = forcedSection === "nurse-specialists" ? "nurse" : "lor";
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
   const [deletingEntry, setDeletingEntry] = useState(false);
   const [savingSpecialist, setSavingSpecialist] = useState(false);
@@ -251,27 +272,47 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   };
 
   const loadEntries = async ({ silent = false } = {}) => {
-    if (!silent) {
+    const shouldUseSilent = silent || hasLoadedOnce;
+
+    if (!shouldUseSilent) {
       setLoading(true);
+    } else {
+      setRefreshing(true);
     }
 
     try {
       if (isEntriesSection) {
-        const [activePayload, historyPayload, summaryPayload] = await Promise.all([
-          cashierService.getEntries({ ...effectiveFilters, timeScope: "active" }),
-          cashierService.getEntries({ ...effectiveFilters, timeScope: "history" }),
-          cashierService.getSummary({ ...effectiveFilters, timeScope: "active" })
-        ]);
+        if (isHistorySection) {
+          const [historyPayload, summaryPayload] = await Promise.all([
+            cashierService.getEntries({ ...effectiveFilters, timeScope: "history" }),
+            cashierService.getSummary({ ...effectiveFilters, timeScope: "history" })
+          ]);
 
-        setEntries(activePayload?.entries || []);
-        setHistoryEntries(historyPayload?.entries || []);
-        setShiftWindow(
-          activePayload?.shift || {
-            fromLabel: "08:00",
-            toLabel: "20:00"
-          }
-        );
-        setSummary(summaryPayload || emptySummary);
+          setEntries([]);
+          setHistoryEntries(historyPayload?.entries || []);
+          setShiftWindow(
+            historyPayload?.shift || {
+              fromLabel: "08:00",
+              toLabel: "20:00"
+            }
+          );
+          setSummary(summaryPayload || emptySummary);
+        } else {
+          const [activePayload, summaryPayload] = await Promise.all([
+            cashierService.getEntries({ ...effectiveFilters, timeScope: "active" }),
+            cashierService.getSummary({ ...effectiveFilters, timeScope: "active" })
+          ]);
+
+          setEntries(activePayload?.entries || []);
+          setHistoryEntries([]);
+          setShiftWindow(
+            activePayload?.shift || {
+              fromLabel: "08:00",
+              toLabel: "20:00"
+            }
+          );
+          setSummary(summaryPayload || emptySummary);
+        }
       } else {
         const [entriesPayload, summaryPayload] = await Promise.all([
           cashierService.getEntries({ ...effectiveFilters, timeScope: "active" }),
@@ -288,12 +329,14 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
         );
         setSummary(summaryPayload || emptySummary);
       }
+      setHasLoadedOnce(true);
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
-      if (!silent) {
+      if (!shouldUseSilent) {
         setLoading(false);
       }
+      setRefreshing(false);
     }
   };
 
@@ -329,8 +372,10 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
       setEntries([]);
       setHistoryEntries([]);
       setLoading(false);
+      setRefreshing(false);
     }
   }, [
+    isHistorySection,
     isEntriesSection,
     isSpecialistSection,
     effectiveFilters.date,
@@ -837,8 +882,9 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           <div className="card p-4 sm:p-5">
             <h2 className="text-lg font-semibold text-slate-800">Filtrlar</h2>
             <div className="mt-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800">
-              Joriy ro'yxat faqat {shiftWindow.fromLabel} - {shiftWindow.toLabel}. Qolgan
-              yozuvlar avtomatik tarix bo'limida saqlanadi.
+              {isHistorySection
+                ? `${shiftWindow.fromLabel} - ${shiftWindow.toLabel} oralig'idan tashqari yozuvlar tarixi.`
+                : `Joriy ro'yxat faqat ${shiftWindow.fromLabel} - ${shiftWindow.toLabel}. Qolgan yozuvlar tarix bo'limida saqlanadi.`}
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <Input
@@ -927,33 +973,34 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
             </form>
           </div>
 
-          <div className="card p-4 sm:p-5">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Joriy yozuvlar ({shiftWindow.fromLabel} - {shiftWindow.toLabel})
-            </h2>
-            <div className="mt-4">
-              <Table
-                data={tableData}
-                columns={entryColumns}
-                headerClassName={entryTableHeaderClass}
-              />
+          {isCurrentEntriesSection ? (
+            <div className="card p-4 sm:p-5">
+              <h2 className="text-lg font-semibold text-slate-800">
+                Joriy yozuvlar ({shiftWindow.fromLabel} - {shiftWindow.toLabel})
+              </h2>
+              <div className="mt-4">
+                <Table
+                  data={tableData}
+                  columns={entryColumns}
+                  headerClassName={entryTableHeaderClass}
+                />
+              </div>
             </div>
-          </div>
-
-          <div className="card p-4 sm:p-5">
-            <h2 className="text-lg font-semibold text-slate-800">Tarix</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Tanlangan sana uchun {shiftWindow.fromLabel} - {shiftWindow.toLabel} dan tashqari va
-              oldingi yozuvlar.
-            </p>
-            <div className="mt-4">
-              <Table
-                data={historyTableData}
-                columns={entryColumns}
-                headerClassName="bg-slate-100 text-slate-700"
-              />
+          ) : (
+            <div className="card p-4 sm:p-5">
+              <h2 className="text-lg font-semibold text-slate-800">Tarix yozuvlari</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {shiftWindow.fromLabel} - {shiftWindow.toLabel} dan tashqari yozuvlar.
+              </p>
+              <div className="mt-4">
+                <Table
+                  data={historyTableData}
+                  columns={entryColumns}
+                  headerClassName="bg-slate-100 text-slate-700"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </>
       ) : null}
 
