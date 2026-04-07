@@ -85,8 +85,19 @@ const paymentMethodOptions = [
   { value: "transfer", label: "O'tkazma" }
 ];
 
+const paymentMethodFormOptions = [
+  { value: "cash", label: "Naqd" },
+  { value: "card", label: "Karta" },
+  { value: "transfer", label: "O'tkazma" }
+];
+
 const departmentOptions = [
   { value: "all", label: "Barchasi" },
+  { value: "lor", label: "LOR" },
+  { value: "nurse", label: "Nurse" }
+];
+
+const departmentFormOptions = [
   { value: "lor", label: "LOR" },
   { value: "nurse", label: "Nurse" }
 ];
@@ -753,17 +764,12 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           <form className="mt-4 space-y-3" onSubmit={handleSaveEntry}>
             <div className="grid gap-3 md:grid-cols-2">
               {!lockedType ? (
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-slate-600">Bo'lim</span>
-                  <select
-                    value={form.department}
-                    onChange={(e) => handleFormChange("department", e.target.value)}
-                    className="sampi-select w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                  >
-                    <option value="lor">LOR</option>
-                    <option value="nurse">Nurse</option>
-                  </select>
-                </label>
+                <SelectMenu
+                  label="Bo'lim"
+                  value={form.department}
+                  options={departmentFormOptions}
+                  onChange={(nextValue) => handleFormChange("department", nextValue)}
+                />
               ) : (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                   <p className="text-xs text-slate-500">Bo'lim</p>
@@ -771,23 +777,18 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                 </div>
               )}
 
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">
-                  {specialistTitle} ro'yxati
-                </span>
-                <select
-                  value={form.specialistId}
-                  onChange={(e) => handleFormChange("specialistId", e.target.value)}
-                  className="sampi-select w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="">Ro'yxatdan tanlang</option>
-                  {selectedTypeSpecialists.map((item) => (
-                    <option key={item._id} value={item._id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SelectMenu
+                label={`${specialistTitle} ro'yxati`}
+                value={form.specialistId}
+                options={[
+                  { value: "", label: "Ro'yxatdan tanlang" },
+                  ...selectedTypeSpecialists.map((item) => ({
+                    value: item._id,
+                    label: item.name
+                  }))
+                ]}
+                onChange={(nextValue) => handleFormChange("specialistId", nextValue)}
+              />
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -827,18 +828,12 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">To'lov usuli</span>
-                <select
-                  value={form.paymentMethod}
-                  onChange={(e) => handleFormChange("paymentMethod", e.target.value)}
-                  className="sampi-select w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="cash">Naqd</option>
-                  <option value="card">Karta</option>
-                  <option value="transfer">O'tkazma</option>
-                </select>
-              </label>
+              <SelectMenu
+                label="To'lov usuli"
+                value={form.paymentMethod}
+                options={paymentMethodFormOptions}
+                onChange={(nextValue) => handleFormChange("paymentMethod", nextValue)}
+              />
 
               <div className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Qarz</p>
