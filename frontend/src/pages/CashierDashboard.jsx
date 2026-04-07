@@ -23,13 +23,13 @@ const SECTION_META = {
   },
   "nurse-entries": {
     title: "Nurse yozuvlari",
-    subtitle: "Nurse bo'limi yozuvlari, to'lov va qarzlar.",
+    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida, qolganlari tarixda saqlanadi.",
     lockedType: "nurse",
     specialistLabel: "Medsestra"
   },
   "lor-entries": {
     title: "LOR yozuvlari",
-    subtitle: "LOR bo'limi yozuvlari, to'lov va qarzlar.",
+    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida, qolganlari tarixda saqlanadi.",
     lockedType: "lor",
     specialistLabel: "Vrach"
   },
@@ -177,6 +177,11 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const [savingSpecialist, setSavingSpecialist] = useState(false);
   const [deletingSpecialist, setDeletingSpecialist] = useState(false);
   const [entries, setEntries] = useState([]);
+  const [historyEntries, setHistoryEntries] = useState([]);
+  const [shiftWindow, setShiftWindow] = useState({
+    fromLabel: "08:00",
+    toLabel: "20:00"
+  });
   const [summary, setSummary] = useState(emptySummary);
   const [specialists, setSpecialists] = useState([]);
   const [filters, setFilters] = useState({
@@ -235,6 +240,10 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     () => entries.map((entry, index) => ({ ...entry, rowNumber: index + 1 })),
     [entries]
   );
+  const historyTableData = useMemo(
+    () => historyEntries.map((entry, index) => ({ ...entry, rowNumber: index + 1 })),
+    [historyEntries]
+  );
 
   const resetMessages = () => {
     setSuccess("");
@@ -247,13 +256,38 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     }
 
     try {
-      const [entriesPayload, summaryPayload] = await Promise.all([
-        cashierService.getEntries(effectiveFilters),
-        cashierService.getSummary(effectiveFilters)
-      ]);
+      if (isEntriesSection) {
+        const [activePayload, historyPayload, summaryPayload] = await Promise.all([
+          cashierService.getEntries({ ...effectiveFilters, timeScope: "active" }),
+          cashierService.getEntries({ ...effectiveFilters, timeScope: "history" }),
+          cashierService.getSummary({ ...effectiveFilters, timeScope: "active" })
+        ]);
 
-      setEntries(entriesPayload?.entries || []);
-      setSummary(summaryPayload || emptySummary);
+        setEntries(activePayload?.entries || []);
+        setHistoryEntries(historyPayload?.entries || []);
+        setShiftWindow(
+          activePayload?.shift || {
+            fromLabel: "08:00",
+            toLabel: "20:00"
+          }
+        );
+        setSummary(summaryPayload || emptySummary);
+      } else {
+        const [entriesPayload, summaryPayload] = await Promise.all([
+          cashierService.getEntries({ ...effectiveFilters, timeScope: "active" }),
+          cashierService.getSummary({ ...effectiveFilters, timeScope: "active" })
+        ]);
+
+        setEntries(entriesPayload?.entries || []);
+        setHistoryEntries([]);
+        setShiftWindow(
+          entriesPayload?.shift || {
+            fromLabel: "08:00",
+            toLabel: "20:00"
+          }
+        );
+        setSummary(summaryPayload || emptySummary);
+      }
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -292,9 +326,12 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     if (!isSpecialistSection) {
       loadEntries();
     } else {
+      setEntries([]);
+      setHistoryEntries([]);
       setLoading(false);
     }
   }, [
+    isEntriesSection,
     isSpecialistSection,
     effectiveFilters.date,
     effectiveFilters.department,
@@ -624,6 +661,18 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     }
   ];
 
+  const specialistCountValue = lockedType
+    ? `${summary.bySpecialistType?.[lockedType]?.count || 0}`
+    : `${summary.bySpecialistType?.nurse?.count || 0} / ${
+        summary.bySpecialistType?.lor?.count || 0
+      }`;
+  const specialistCountTitle = lockedType
+    ? `${departmentLabels[lockedType]} yozuvlari`
+    : "Nurse / LOR";
+  const specialistCountHint = lockedType
+    ? "Joriy ro'yxatdagi mutaxassislar soni"
+    : "Mutaxassislar bo'yicha";
+
   return (
     <div className="space-y-6">
       <div className="card p-4 sm:p-5">
@@ -650,11 +699,9 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           tone="accent"
         />
         <SummaryCard
-          title="Nurse / LOR"
-          value={`${summary.bySpecialistType?.nurse?.count || 0} / ${
-            summary.bySpecialistType?.lor?.count || 0
-          }`}
-          hint="Mutaxassislar bo'yicha"
+          title={specialistCountTitle}
+          value={specialistCountValue}
+          hint={specialistCountHint}
         />
       </div>
 
@@ -789,6 +836,10 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
         <>
           <div className="card p-4 sm:p-5">
             <h2 className="text-lg font-semibold text-slate-800">Filtrlar</h2>
+            <div className="mt-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800">
+              Joriy ro'yxat faqat {shiftWindow.fromLabel} - {shiftWindow.toLabel}. Qolgan
+              yozuvlar avtomatik tarix bo'limida saqlanadi.
+            </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
               <Input
                 label="Sana"
@@ -877,12 +928,29 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           </div>
 
           <div className="card p-4 sm:p-5">
-            <h2 className="text-lg font-semibold text-slate-800">Yozuvlar</h2>
+            <h2 className="text-lg font-semibold text-slate-800">
+              Joriy yozuvlar ({shiftWindow.fromLabel} - {shiftWindow.toLabel})
+            </h2>
             <div className="mt-4">
               <Table
                 data={tableData}
                 columns={entryColumns}
                 headerClassName={entryTableHeaderClass}
+              />
+            </div>
+          </div>
+
+          <div className="card p-4 sm:p-5">
+            <h2 className="text-lg font-semibold text-slate-800">Tarix</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Tanlangan sana uchun {shiftWindow.fromLabel} - {shiftWindow.toLabel} dan tashqari va
+              oldingi yozuvlar.
+            </p>
+            <div className="mt-4">
+              <Table
+                data={historyTableData}
+                columns={entryColumns}
+                headerClassName="bg-slate-100 text-slate-700"
               />
             </div>
           </div>

@@ -9,7 +9,8 @@ const getEntries = asyncHandler(async (req, res) => {
     specialistType: req.query.specialistType,
     paymentMethod: req.query.paymentMethod,
     debtOnly: req.query.debtOnly,
-    search: req.query.search
+    search: req.query.search,
+    timeScope: req.query.timeScope
   });
 
   res.status(200).json({ success: true, data });
@@ -23,7 +24,8 @@ const getSummary = asyncHandler(async (req, res) => {
     specialistType: req.query.specialistType,
     paymentMethod: req.query.paymentMethod,
     debtOnly: req.query.debtOnly,
-    search: req.query.search
+    search: req.query.search,
+    timeScope: req.query.timeScope
   });
 
   res.status(200).json({ success: true, data });

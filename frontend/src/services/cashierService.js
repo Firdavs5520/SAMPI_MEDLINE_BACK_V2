@@ -6,13 +6,15 @@ const buildQuery = ({
   specialistType = "all",
   paymentMethod = "all",
   debtOnly = false,
-  search = ""
+  search = "",
+  timeScope = "all"
 }) => {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   if (department) params.set("department", department);
   if (specialistType) params.set("specialistType", specialistType);
   if (paymentMethod) params.set("paymentMethod", paymentMethod);
+  if (timeScope) params.set("timeScope", timeScope);
   if (debtOnly) params.set("debtOnly", "true");
   if (search?.trim()) params.set("search", search.trim());
   const query = params.toString();
