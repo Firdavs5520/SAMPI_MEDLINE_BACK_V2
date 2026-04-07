@@ -5,34 +5,82 @@ const AppError = require("../utils/AppError");
 const DEPARTMENTS = ["lor", "nurse", "procedure"];
 const SPECIALIST_TYPES = ["nurse", "lor"];
 const PAYMENT_METHODS = ["cash", "card", "transfer"];
+const TIME_SCOPES = ["all", "active", "history"];
+const TASHKENT_UTC_OFFSET_HOURS = 5;
 
-const toDateString = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+const toTashkentDateString = (date = new Date()) =>
+  new Date(date.getTime() + TASHKENT_UTC_OFFSET_HOURS * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normalizeDateString = (value) => {
   const safe = String(value || "").trim();
-  if (!safe) return toDateString(new Date());
+  if (!safe) return toTashkentDateString(new Date());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(safe)) {
     throw new AppError("date must be in YYYY-MM-DD format", 400);
   }
   return safe;
 };
 
+const parseDateParts = (dateString) => {
+  const [yearPart, monthPart, dayPart] = String(dateString).split("-");
+  const year = Number(yearPart);
+  const month = Number(monthPart);
+  const day = Number(dayPart);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    throw new AppError("Invalid date", 400);
+  }
+
+  return { year, month, day };
+};
+
+const toUtcDateFromTashkent = (
+  year,
+  month,
+  day,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  ms = 0
+) =>
+  new Date(
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      hour - TASHKENT_UTC_OFFSET_HOURS,
+      minute,
+      second,
+      ms
+    )
+  );
+
 const getDateRange = (dateString) => {
   const safeDateString = normalizeDateString(dateString);
-  const start = new Date(`${safeDateString}T00:00:00.000Z`);
+  const { year, month, day } = parseDateParts(safeDateString);
+  const start = toUtcDateFromTashkent(year, month, day, 0, 0, 0, 0);
   if (Number.isNaN(start.getTime())) {
     throw new AppError("Invalid date", 400);
   }
 
-  const end = new Date(`${safeDateString}T23:59:59.999Z`);
+  const end = toUtcDateFromTashkent(year, month, day, 23, 59, 59, 999);
   return { safeDateString, start, end };
+};
+
+const getShiftRange = (dateString) => {
+  const safeDateString = normalizeDateString(dateString);
+  const { year, month, day } = parseDateParts(safeDateString);
+  const start = toUtcDateFromTashkent(year, month, day, 8, 0, 0, 0);
+  const end = toUtcDateFromTashkent(year, month, day, 19, 59, 59, 999);
+
+  return {
+    safeDateString,
+    start,
+    end
+  };
 };
 
 const normalizeDepartment = (value, { allowAll = false } = {}) => {
@@ -71,6 +119,18 @@ const normalizePaymentMethod = (value, { allowAll = false } = {}) => {
   if (!PAYMENT_METHODS.includes(safe)) {
     throw new AppError("paymentMethod must be cash, card, transfer, mixed or debt", 400);
   }
+  return safe;
+};
+
+const normalizeTimeScope = (value) => {
+  const safe = String(value || "all")
+    .trim()
+    .toLowerCase();
+
+  if (!TIME_SCOPES.includes(safe)) {
+    throw new AppError("timeScope must be all, active or history", 400);
+  }
+
   return safe;
 };
 
@@ -117,50 +177,73 @@ const buildListFilter = ({
   specialistType,
   paymentMethod,
   debtOnly,
-  search
+  search,
+  timeScope = "all"
 }) => {
-  const { start, end, safeDateString } = getDateRange(date);
+  const { start: dayStart, end: dayEnd, safeDateString } = getDateRange(date);
+  const { start: shiftStart, end: shiftEnd } = getShiftRange(safeDateString);
   const safeDepartment = normalizeDepartment(department, { allowAll: true });
   const safeSpecialistType = normalizeSpecialistType(specialistType, { allowAll: true });
   const safePaymentMethod = normalizePaymentMethod(paymentMethod, { allowAll: true });
+  const safeTimeScope = normalizeTimeScope(timeScope);
   const safeDebtOnly = String(debtOnly || "")
     .trim()
     .toLowerCase();
   const safeSearch = String(search || "").trim();
+  const andConditions = [];
 
-  const filter = {
-    entryDate: { $gte: start, $lte: end }
-  };
+  if (safeTimeScope === "active") {
+    andConditions.push({
+      entryDate: { $gte: shiftStart, $lte: shiftEnd }
+    });
+  } else if (safeTimeScope === "history") {
+    andConditions.push({
+      $or: [{ entryDate: { $lt: shiftStart } }, { entryDate: { $gt: shiftEnd } }]
+    });
+  } else {
+    andConditions.push({
+      entryDate: { $gte: dayStart, $lte: dayEnd }
+    });
+  }
 
   if (safeDepartment !== "all") {
     if (safeDepartment === "nurse") {
-      filter.department = { $in: ["nurse", "procedure"] };
+      andConditions.push({ department: { $in: ["nurse", "procedure"] } });
     } else {
-      filter.department = safeDepartment;
+      andConditions.push({ department: safeDepartment });
     }
   }
 
   if (safeSpecialistType !== "all") {
-    filter.specialistType = safeSpecialistType;
+    andConditions.push({ specialistType: safeSpecialistType });
   }
 
   if (safePaymentMethod !== "all") {
-    filter.paymentMethod = safePaymentMethod;
+    andConditions.push({ paymentMethod: safePaymentMethod });
   }
 
   if (safeDebtOnly === "true" || safeDebtOnly === "1") {
-    filter.debtAmount = { $gt: 0 };
+    andConditions.push({ debtAmount: { $gt: 0 } });
   }
 
   if (safeSearch) {
     const regex = new RegExp(escapeRegex(safeSearch), "i");
-    filter.$or = [
-      { patientName: regex },
-      { specialistName: regex },
-      { patientPhone: regex },
-      { note: regex }
-    ];
+    andConditions.push({
+      $or: [
+        { patientName: regex },
+        { specialistName: regex },
+        { patientPhone: regex },
+        { note: regex }
+      ]
+    });
   }
+
+  const filter =
+    andConditions.length === 1
+      ? andConditions[0]
+      : {
+          $and: andConditions
+        };
 
   return {
     filter,
@@ -168,7 +251,10 @@ const buildListFilter = ({
     safeDepartment,
     safeSpecialistType,
     safePaymentMethod,
-    safeDebtOnly
+    safeDebtOnly,
+    safeTimeScope,
+    shiftStart,
+    shiftEnd
   };
 };
 
@@ -211,7 +297,8 @@ const getEntries = async ({
   specialistType,
   paymentMethod,
   debtOnly,
-  search
+  search,
+  timeScope
 }) => {
   assertCashierReadPermission(user);
 
@@ -221,23 +308,38 @@ const getEntries = async ({
     safeDepartment,
     safeSpecialistType,
     safePaymentMethod,
-    safeDebtOnly
+    safeDebtOnly,
+    safeTimeScope,
+    shiftStart,
+    shiftEnd
   } = buildListFilter({
     date,
     department,
     specialistType,
     paymentMethod,
     debtOnly,
-    search
+    search,
+    timeScope
   });
 
-  const entries = await CashierEntry.find(filter).sort({ createdAt: 1 });
+  const entries = await CashierEntry.find(filter).sort(
+    safeTimeScope === "history"
+      ? { entryDate: -1, createdAt: -1 }
+      : { entryDate: 1, createdAt: 1 }
+  );
   return {
     date: safeDateString,
     department: safeDepartment,
     specialistType: safeSpecialistType,
     paymentMethod: safePaymentMethod,
     debtOnly: safeDebtOnly === "true" || safeDebtOnly === "1",
+    timeScope: safeTimeScope,
+    shift: {
+      start: shiftStart.toISOString(),
+      end: shiftEnd.toISOString(),
+      fromLabel: "08:00",
+      toLabel: "20:00"
+    },
     entries
   };
 };
@@ -249,7 +351,8 @@ const getSummary = async ({
   specialistType,
   paymentMethod,
   debtOnly,
-  search
+  search,
+  timeScope
 }) => {
   assertCashierReadPermission(user);
 
@@ -259,14 +362,18 @@ const getSummary = async ({
     safeDepartment,
     safeSpecialistType,
     safePaymentMethod,
-    safeDebtOnly
+    safeDebtOnly,
+    safeTimeScope,
+    shiftStart,
+    shiftEnd
   } = buildListFilter({
     date,
     department,
     specialistType,
     paymentMethod,
     debtOnly,
-    search
+    search,
+    timeScope
   });
 
   const [summary] = await CashierEntry.aggregate([
@@ -357,6 +464,13 @@ const getSummary = async ({
     specialistType: safeSpecialistType,
     paymentMethod: safePaymentMethod,
     debtOnly: safeDebtOnly === "true" || safeDebtOnly === "1",
+    timeScope: safeTimeScope,
+    shift: {
+      start: shiftStart.toISOString(),
+      end: shiftEnd.toISOString(),
+      fromLabel: "08:00",
+      toLabel: "20:00"
+    },
     totalAmount: Number(overall.totalAmount || 0),
     totalPaidAmount: Number(overall.totalPaidAmount || 0),
     totalDebtAmount: Number(overall.totalDebtAmount || 0),
