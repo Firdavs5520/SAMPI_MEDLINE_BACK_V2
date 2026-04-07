@@ -4,7 +4,6 @@ import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 import Spinner from "../components/Spinner.jsx";
 import Table from "../components/Table.jsx";
-import ConfirmActionModal from "../components/ConfirmActionModal.jsx";
 import SelectMenu from "../components/SelectMenu.jsx";
 import DatePickerField from "../components/DatePickerField.jsx";
 import cashierService from "../services/cashierService.js";
@@ -215,9 +214,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const [refreshing, setRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
-  const [deletingEntry, setDeletingEntry] = useState(false);
   const [savingSpecialist, setSavingSpecialist] = useState(false);
-  const [deletingSpecialist, setDeletingSpecialist] = useState(false);
   const [entries, setEntries] = useState([]);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [shiftWindow, setShiftWindow] = useState({
@@ -237,9 +234,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const [searchInput, setSearchInput] = useState("");
   const [form, setForm] = useState(createInitialForm(lockedType || "lor"));
   const [editingEntry, setEditingEntry] = useState(null);
-  const [deleteEntryTarget, setDeleteEntryTarget] = useState(null);
   const [specialistNameInput, setSpecialistNameInput] = useState("");
-  const [deleteSpecialistTarget, setDeleteSpecialistTarget] = useState(null);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -517,24 +512,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     });
   };
 
-  const handleDeleteEntry = async () => {
-    if (!deleteEntryTarget?._id) return;
-
-    setDeletingEntry(true);
-    resetMessages();
-
-    try {
-      await cashierService.deleteEntry(deleteEntryTarget._id);
-      setDeleteEntryTarget(null);
-      setSuccess("Yozuv o'chirildi.");
-      await loadEntries({ silent: true });
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    } finally {
-      setDeletingEntry(false);
-    }
-  };
-
   const handleSearchSubmit = (event) => {
     event.preventDefault();
     setFilters((prev) => ({ ...prev, search: searchInput.trim() }));
@@ -558,24 +535,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
       setError(extractErrorMessage(err));
     } finally {
       setSavingSpecialist(false);
-    }
-  };
-
-  const handleDeleteSpecialist = async () => {
-    if (!deleteSpecialistTarget?._id) return;
-
-    setDeletingSpecialist(true);
-    resetMessages();
-
-    try {
-      await cashierService.deleteSpecialist(deleteSpecialistTarget._id);
-      setDeleteSpecialistTarget(null);
-      setSuccess("Mutaxassis o'chirildi.");
-      await loadSpecialists();
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    } finally {
-      setDeletingSpecialist(false);
     }
   };
 
@@ -624,15 +583,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                 {
                   key: "actions",
                   label: "Amallar",
-                  render: (row) => (
-                    <button
-                      type="button"
-                      onClick={() => setDeleteSpecialistTarget(row)}
-                      className="rounded-lg bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200"
-                    >
-                      O'chirish
-                    </button>
-                  )
+                  render: () => <span className="text-xs text-slate-400">-</span>
                 }
               ]}
             />
@@ -641,17 +592,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
 
         <Alert type="success" message={success} />
         <Alert type="error" message={error} />
-
-        <ConfirmActionModal
-          open={Boolean(deleteSpecialistTarget)}
-          title="Mutaxassisni o'chirish"
-          description={`${deleteSpecialistTarget?.name || "Tanlangan mutaxassis"} ni o'chirasizmi?`}
-          confirmText="Ha, o'chirish"
-          cancelText="Yo'q"
-          loading={deletingSpecialist}
-          onConfirm={handleDeleteSpecialist}
-          onClose={() => setDeleteSpecialistTarget(null)}
-        />
       </div>
     );
   }
@@ -715,13 +655,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
               Tahrirlash
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setDeleteEntryTarget(row)}
-            className="rounded-lg bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-200"
-          >
-            O'chirish
-          </button>
         </div>
       )
     }
@@ -1054,17 +987,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
 
       <Alert type="success" message={success} />
       <Alert type="error" message={error} />
-
-      <ConfirmActionModal
-        open={Boolean(deleteEntryTarget)}
-        title="Yozuvni o'chirish"
-        description={`${deleteEntryTarget?.patientName || "Tanlangan yozuv"} yozuvini o'chirasizmi?`}
-        confirmText="Ha, o'chirish"
-        cancelText="Yo'q"
-        loading={deletingEntry}
-        onConfirm={handleDeleteEntry}
-        onClose={() => setDeleteEntryTarget(null)}
-      />
     </div>
   );
 }
