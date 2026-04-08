@@ -5,6 +5,7 @@ import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
 import Spinner from "../components/Spinner.jsx";
+import QuickSearchInput from "../components/QuickSearchInput.jsx";
 import {
   extractErrorMessage,
   formatCurrency,
@@ -12,12 +13,18 @@ import {
   parseMoneyInput
 } from "../utils/format.js";
 
+const normalizeSearch = (value) =>
+  String(value ?? "")
+    .toLocaleLowerCase("uz-UZ")
+    .trim();
+
 function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
   const [savingStock, setSavingStock] = useState(false);
   const [medicines, setMedicines] = useState([]);
   const [selectedMedicineIds, setSelectedMedicineIds] = useState([]);
   const [selectedInputs, setSelectedInputs] = useState({});
+  const [medicineSearch, setMedicineSearch] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -28,6 +35,15 @@ function DeliveryDashboard() {
       ),
     [medicines]
   );
+
+  const filteredMedicines = useMemo(() => {
+    const query = normalizeSearch(medicineSearch);
+    if (!query) return sortedMedicines;
+
+    return sortedMedicines.filter((medicine) =>
+      normalizeSearch(medicine?.name).includes(query)
+    );
+  }, [medicineSearch, sortedMedicines]);
 
   const loadMedicines = async () => {
     setLoading(true);
@@ -125,8 +141,29 @@ function DeliveryDashboard() {
           Kuryer bir nechta dorini tugma orqali tanlaydi.
         </p>
 
+        <div className="mb-4">
+          <QuickSearchInput
+            label="Dori qidirish"
+            placeholder="Masalan: Ceftriaxone"
+            value={medicineSearch}
+            onChange={setMedicineSearch}
+            items={sortedMedicines}
+            getItemLabel={(item) => item?.name || ""}
+            onPick={(medicine) => {
+              setMedicineSearch(medicine?.name || "");
+            }}
+            emptyText="Mos dori topilmadi"
+          />
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {sortedMedicines.map((medicine) => {
+          {filteredMedicines.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600 sm:col-span-2 xl:col-span-3">
+              Qidiruv bo'yicha dori topilmadi.
+            </div>
+          ) : null}
+
+          {filteredMedicines.map((medicine) => {
             const selected = selectedMedicineIds.includes(medicine._id);
             return (
               <button

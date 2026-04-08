@@ -7,6 +7,7 @@ import Button from "../components/Button.jsx";
 import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import BusyOverlay from "../components/BusyOverlay.jsx";
+import QuickSearchInput from "../components/QuickSearchInput.jsx";
 import {
   extractErrorMessage,
   formatCurrency,
@@ -65,6 +66,11 @@ const getSelectedServicePrice = (service, priceTier) => {
   return prices[safeTier];
 };
 
+const normalizeSearch = (value) =>
+  String(value ?? "")
+    .toLocaleLowerCase("uz-UZ")
+    .trim();
+
 function NurseDashboard() {
   const [loading, setLoading] = useState(true);
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
@@ -75,10 +81,29 @@ function NurseDashboard() {
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [medicineInputs, setMedicineInputs] = useState({});
   const [serviceInputs, setServiceInputs] = useState({});
+  const [medicineSearch, setMedicineSearch] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   const nurseMedicines = useMemo(() => medicines, [medicines]);
+  const filteredNurseMedicines = useMemo(() => {
+    const query = normalizeSearch(medicineSearch);
+    if (!query) return nurseMedicines;
+
+    return nurseMedicines.filter((medicine) =>
+      normalizeSearch(medicine?.name).includes(query)
+    );
+  }, [medicineSearch, nurseMedicines]);
+
+  const filteredNurseServices = useMemo(() => {
+    const query = normalizeSearch(serviceSearch);
+    if (!query) return nurseServices;
+
+    return nurseServices.filter((service) =>
+      normalizeSearch(service?.name).includes(query)
+    );
+  }, [serviceSearch, nurseServices]);
 
   const hasAnySelection = selectedMedicineIds.length > 0 || selectedServiceIds.length > 0;
 
@@ -309,8 +334,29 @@ function NurseDashboard() {
           Kerakli dorilarni belgilang. Omborda bo'lmasa "QOLMADI" holatda chiqadi.
         </p>
 
+        <div className="mb-4">
+          <QuickSearchInput
+            label="Dori qidirish"
+            placeholder="Masalan: Paracetamol"
+            value={medicineSearch}
+            onChange={setMedicineSearch}
+            items={nurseMedicines}
+            getItemLabel={(item) => item?.name || ""}
+            onPick={(medicine) => {
+              setMedicineSearch(medicine?.name || "");
+            }}
+            emptyText="Mos dori topilmadi"
+          />
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {nurseMedicines.map((medicine) => {
+          {filteredNurseMedicines.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600 md:col-span-2 xl:col-span-3">
+              Qidiruv bo'yicha dori topilmadi.
+            </div>
+          ) : null}
+
+          {filteredNurseMedicines.map((medicine) => {
             const selected = selectedMedicineIds.includes(medicine._id);
             const isOut = medicine.stock <= 0;
             const hasInvalidPrice = !isValidStoredPrice(medicine.price);
@@ -405,8 +451,29 @@ function NurseDashboard() {
           Hamshira xizmatlari 1/2/3-marta narxlari bilan chiqadi.
         </p>
 
+        <div className="mb-4">
+          <QuickSearchInput
+            label="Xizmat qidirish"
+            placeholder="Masalan: Ukol qilish"
+            value={serviceSearch}
+            onChange={setServiceSearch}
+            items={nurseServices}
+            getItemLabel={(item) => item?.name || ""}
+            onPick={(service) => {
+              setServiceSearch(service?.name || "");
+            }}
+            emptyText="Mos xizmat topilmadi"
+          />
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {nurseServices.map((service) => {
+          {filteredNurseServices.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600 md:col-span-2 xl:col-span-3">
+              Qidiruv bo'yicha xizmat topilmadi.
+            </div>
+          ) : null}
+
+          {filteredNurseServices.map((service) => {
             const selected = selectedServiceIds.includes(service._id);
             const tierPrices = getServiceTierPrices(service);
             const hasInvalidPrice = !tierPrices;

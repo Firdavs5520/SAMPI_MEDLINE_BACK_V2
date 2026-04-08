@@ -6,6 +6,7 @@ import Button from "../components/Button.jsx";
 import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import BusyOverlay from "../components/BusyOverlay.jsx";
+import QuickSearchInput from "../components/QuickSearchInput.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   extractErrorMessage,
@@ -19,6 +20,11 @@ import {
   writeCheckToPrintTab
 } from "../utils/printReceipt.js";
 
+const normalizeSearch = (value) =>
+  String(value ?? "")
+    .toLocaleLowerCase("uz-UZ")
+    .trim();
+
 function LorServicesPage() {
   const { user, lorIdentity } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -26,6 +32,7 @@ function LorServicesPage() {
   const [services, setServices] = useState([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [serviceInputs, setServiceInputs] = useState({});
+  const [serviceSearch, setServiceSearch] = useState("");
   const [patient, setPatient] = useState({ fullName: "" });
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -37,6 +44,15 @@ function LorServicesPage() {
       ),
     [services]
   );
+
+  const filteredServices = useMemo(() => {
+    const query = normalizeSearch(serviceSearch);
+    if (!query) return sortedServices;
+
+    return sortedServices.filter((service) =>
+      normalizeSearch(service?.name).includes(query)
+    );
+  }, [serviceSearch, sortedServices]);
 
   const loadServices = async () => {
     setLoading(true);
@@ -183,14 +199,34 @@ function LorServicesPage() {
           Tanlangan LOR: {lorIdentity ? lorIdentity.toUpperCase() : "-"}
         </p>
 
+        <div className="mb-4">
+          <QuickSearchInput
+            label="Xizmat qidirish"
+            placeholder="Masalan: Burun chayish"
+            value={serviceSearch}
+            onChange={setServiceSearch}
+            items={sortedServices}
+            getItemLabel={(item) => item?.name || ""}
+            onPick={(service) => {
+              setServiceSearch(service?.name || "");
+            }}
+            emptyText="Mos xizmat topilmadi"
+          />
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {sortedServices.length === 0 ? (
             <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
               Hali xizmat yo'q. Avval "Xizmat qo'shish" bo'limida xizmat yarating.
             </div>
           ) : null}
+          {sortedServices.length > 0 && filteredServices.length === 0 ? (
+            <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
+              Qidiruv bo'yicha xizmat topilmadi.
+            </div>
+          ) : null}
 
-          {sortedServices.map((service) => {
+          {filteredServices.map((service) => {
             const selected = selectedServiceIds.includes(service._id);
             return (
               <button
