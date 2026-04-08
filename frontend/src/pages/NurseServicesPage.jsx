@@ -6,7 +6,13 @@ import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
 import ConfirmActionModal from "../components/ConfirmActionModal.jsx";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  formatMoneyInput,
+  parseMoneyInput,
+  toTitleCaseName
+} from "../utils/format.js";
 
 const emptyPriceForm = {
   name: "",
@@ -16,7 +22,7 @@ const emptyPriceForm = {
 };
 
 const parsePrice = (value) => {
-  const parsed = Number(value);
+  const parsed = parseMoneyInput(value);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 1000000) {
     throw new Error("Narx > 0 va < 1,000,000 bo'lishi kerak.");
   }
@@ -92,7 +98,7 @@ function NurseServicesPage() {
     setSaving(true);
 
     try {
-      const safeName = form.name.trim();
+      const safeName = toTitleCaseName(form.name).trim();
       if (!safeName) {
         throw new Error("Xizmat nomini kiriting.");
       }
@@ -121,9 +127,9 @@ function NurseServicesPage() {
     setEditingServiceId(service._id);
     setEditForm({
       name: service.name || "",
-      first: String(options.first || ""),
-      second: String(options.second || ""),
-      third: String(options.third || "")
+      first: formatMoneyInput(options.first),
+      second: formatMoneyInput(options.second),
+      third: formatMoneyInput(options.third)
     });
     resetMessages();
   };
@@ -140,7 +146,7 @@ function NurseServicesPage() {
     resetMessages();
     setUpdating(true);
     try {
-      const safeName = editForm.name.trim();
+      const safeName = toTitleCaseName(editForm.name).trim();
       if (!safeName) {
         throw new Error("Xizmat nomini kiriting.");
       }
@@ -204,28 +210,39 @@ function NurseServicesPage() {
           <Input
             label="Xizmat nomi"
             value={form.name}
-            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, name: toTitleCaseName(e.target.value) }))
+            }
           />
           <Input
             label="1-marta narxi"
-            type="number"
-            min="1"
+            type="text"
+            inputMode="numeric"
+            maxLength={7}
             value={form.first}
-            onChange={(e) => setForm((prev) => ({ ...prev, first: e.target.value }))}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, first: formatMoneyInput(e.target.value) }))
+            }
           />
           <Input
             label="2-marta narxi"
-            type="number"
-            min="1"
+            type="text"
+            inputMode="numeric"
+            maxLength={7}
             value={form.second}
-            onChange={(e) => setForm((prev) => ({ ...prev, second: e.target.value }))}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, second: formatMoneyInput(e.target.value) }))
+            }
           />
           <Input
             label="3-marta narxi"
-            type="number"
-            min="1"
+            type="text"
+            inputMode="numeric"
+            maxLength={7}
             value={form.third}
-            onChange={(e) => setForm((prev) => ({ ...prev, third: e.target.value }))}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, third: formatMoneyInput(e.target.value) }))
+            }
           />
           <Button type="submit" className="h-fit self-end" loading={saving}>
             Qo'shish
@@ -243,28 +260,51 @@ function NurseServicesPage() {
             <Input
               label="Xizmat nomi"
               value={editForm.name}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  name: toTitleCaseName(e.target.value)
+                }))
+              }
             />
             <Input
               label="1-marta narxi"
-              type="number"
-              min="1"
+              type="text"
+              inputMode="numeric"
+              maxLength={7}
               value={editForm.first}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, first: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  first: formatMoneyInput(e.target.value)
+                }))
+              }
             />
             <Input
               label="2-marta narxi"
-              type="number"
-              min="1"
+              type="text"
+              inputMode="numeric"
+              maxLength={7}
               value={editForm.second}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, second: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  second: formatMoneyInput(e.target.value)
+                }))
+              }
             />
             <Input
               label="3-marta narxi"
-              type="number"
-              min="1"
+              type="text"
+              inputMode="numeric"
+              maxLength={7}
               value={editForm.third}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, third: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  third: formatMoneyInput(e.target.value)
+                }))
+              }
             />
             <Button type="submit" className="h-fit self-end" loading={updating}>
               Saqlash

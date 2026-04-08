@@ -7,14 +7,19 @@ import Button from "../components/Button.jsx";
 import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import BusyOverlay from "../components/BusyOverlay.jsx";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  splitFullName,
+  toTitleCaseName
+} from "../utils/format.js";
 import {
   closePrintTab,
   openPendingPrintTab,
   writeCheckToPrintTab
 } from "../utils/printReceipt.js";
 
-const defaultPatient = { firstName: "", lastName: "" };
+const defaultPatient = { fullName: "" };
 const priceTierLabels = {
   first: "1-marta",
   second: "2-marta",
@@ -206,11 +211,12 @@ function NurseDashboard() {
     let printTab = null;
 
     try {
-      const firstName = patient.firstName.trim();
-      const lastName = patient.lastName.trim();
+      const normalizedPatient = splitFullName(patient.fullName);
+      const firstName = normalizedPatient.firstName.trim();
+      const lastName = normalizedPatient.lastName.trim();
 
       if (!firstName || !lastName) {
-        throw new Error("Bemorning ismi va familiyasi kiritilishi shart.");
+        throw new Error("Bemor F.I.O ni to'liq kiriting (ismi va familiyasi).");
       }
 
       if (!hasAnySelection) {
@@ -509,22 +515,19 @@ function NurseDashboard() {
             3-qadam: Bemor ma'lumotini kiriting
           </h2>
           <p className="mb-4 text-sm text-slate-500">
-            Ism va familiyani kiriting, so'ng chek chiqaring.
+            Bemor F.I.O ni kiriting, so'ng chek chiqaring.
           </p>
 
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-1">
             <Input
-              label="Ism"
-              value={patient.firstName}
+              label="Bemor F.I.O"
+              value={patient.fullName}
+              placeholder="Masalan: Ali Valiyev"
               onChange={(e) =>
-                setPatient((prev) => ({ ...prev, firstName: e.target.value }))
-              }
-            />
-            <Input
-              label="Familiya"
-              value={patient.lastName}
-              onChange={(e) =>
-                setPatient((prev) => ({ ...prev, lastName: e.target.value }))
+                setPatient((prev) => ({
+                  ...prev,
+                  fullName: toTitleCaseName(e.target.value)
+                }))
               }
             />
           </div>

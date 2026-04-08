@@ -5,7 +5,12 @@ import Button from "../components/Button.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
 import Spinner from "../components/Spinner.jsx";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  formatMoneyInput,
+  parseMoneyInput
+} from "../utils/format.js";
 
 function DeliveryDashboard() {
   const [loading, setLoading] = useState(true);
@@ -67,7 +72,7 @@ function DeliveryDashboard() {
     setSelectedInputs((prev) => ({
       ...prev,
       [medicineId]: {
-        quantity: value
+        quantity: formatMoneyInput(value, 4)
       }
     }));
   };
@@ -82,7 +87,7 @@ function DeliveryDashboard() {
       }
 
       const items = selectedMedicineIds.map((medicineId) => {
-        const quantity = Number(selectedInputs[medicineId]?.quantity);
+        const quantity = parseMoneyInput(selectedInputs[medicineId]?.quantity);
         if (!Number.isFinite(quantity) || quantity <= 0) {
           throw new Error("Har bir dorida miqdor 0 dan katta bo'lishi kerak.");
         }
@@ -136,7 +141,7 @@ function DeliveryDashboard() {
               >
                 <p className="font-semibold text-slate-800">{medicine.name}</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Ho'zirgi qoldiq: {medicine.stock}
+                  Ho'zirgi qoldiq: {formatCurrency(medicine.stock)}
                 </p>
                 <p className="text-xs text-slate-500">
                   Narx: {medicine.price ? formatCurrency(medicine.price) : "-"}
@@ -169,14 +174,15 @@ function DeliveryDashboard() {
                   <div>
                     <p className="font-medium text-slate-800">{medicine?.name}</p>
                     <p className="text-xs text-slate-500">
-                      Ho'zirgi qoldiq: {medicine?.stock}
+                      Ho'zirgi qoldiq: {formatCurrency(medicine?.stock)}
                     </p>
                   </div>
 
                   <Input
                     label="Keltirilgan miqdor"
-                    type="number"
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={5}
                     value={input.quantity || ""}
                     onChange={(e) => updateSelectedInput(medicineId, e.target.value)}
                   />
@@ -222,7 +228,11 @@ function DeliveryDashboard() {
               label: "Narxi",
               render: (row) => formatCurrency(row.price)
             },
-            { key: "stock", label: "Qoldiq" },
+            {
+              key: "stock",
+              label: "Qoldiq",
+              render: (row) => formatCurrency(row.stock)
+            },
             {
               key: "status",
               label: "Holat",

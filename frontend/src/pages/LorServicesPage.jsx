@@ -7,7 +7,12 @@ import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import BusyOverlay from "../components/BusyOverlay.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  splitFullName,
+  toTitleCaseName
+} from "../utils/format.js";
 import {
   closePrintTab,
   openPendingPrintTab,
@@ -21,7 +26,7 @@ function LorServicesPage() {
   const [services, setServices] = useState([]);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [serviceInputs, setServiceInputs] = useState({});
-  const [patient, setPatient] = useState({ firstName: "", lastName: "" });
+  const [patient, setPatient] = useState({ fullName: "" });
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
@@ -111,10 +116,11 @@ function LorServicesPage() {
     let printTab = null;
 
     try {
-      const firstName = patient.firstName.trim();
-      const lastName = patient.lastName.trim();
+      const normalizedPatient = splitFullName(patient.fullName);
+      const firstName = normalizedPatient.firstName.trim();
+      const lastName = normalizedPatient.lastName.trim();
       if (!firstName || !lastName) {
-        throw new Error("Bemor ismi va familiyasini kiriting.");
+        throw new Error("Bemor F.I.O ni to'liq kiriting (ismi va familiyasi).");
       }
       if (!lorIdentity) {
         throw new Error("LOR tanlovi topilmadi. Qayta kirib chiqing.");
@@ -146,7 +152,7 @@ function LorServicesPage() {
       });
 
       setSuccess("Chek muvaffaqiyatli yaratildi.");
-      setPatient({ firstName: "", lastName: "" });
+      setPatient({ fullName: "" });
       setSelectedServiceIds([]);
       setServiceInputs({});
 
@@ -261,22 +267,19 @@ function LorServicesPage() {
       <div className="card p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-slate-800">3-qadam: Bemor ma'lumoti</h2>
         <p className="mb-4 text-sm text-slate-500">
-          Ism va familiya kiriting, keyin chekni bir marta bosib chiqaring.
+          Bemor F.I.O ni kiriting, keyin chekni bir marta bosib chiqaring.
         </p>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-2">
+        <div className="mb-4 grid gap-3 md:grid-cols-1">
           <Input
-            label="Bemor ismi"
-            value={patient.firstName}
+            label="Bemor F.I.O"
+            value={patient.fullName}
+            placeholder="Masalan: Ali Valiyev"
             onChange={(e) =>
-              setPatient((prev) => ({ ...prev, firstName: e.target.value }))
-            }
-          />
-          <Input
-            label="Bemor familiyasi"
-            value={patient.lastName}
-            onChange={(e) =>
-              setPatient((prev) => ({ ...prev, lastName: e.target.value }))
+              setPatient((prev) => ({
+                ...prev,
+                fullName: toTitleCaseName(e.target.value)
+              }))
             }
           />
         </div>

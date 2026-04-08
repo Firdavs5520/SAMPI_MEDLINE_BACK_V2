@@ -6,7 +6,13 @@ import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
 import ConfirmActionModal from "../components/ConfirmActionModal.jsx";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  formatMoneyInput,
+  parseMoneyInput,
+  toTitleCaseName
+} from "../utils/format.js";
 
 function NurseMedicinesPage() {
   const [loading, setLoading] = useState(true);
@@ -52,8 +58,8 @@ function NurseMedicinesPage() {
     setSaving(true);
 
     try {
-      const safeName = newMedicineName.trim();
-      const safePrice = Number(newMedicinePrice);
+      const safeName = toTitleCaseName(newMedicineName).trim();
+      const safePrice = parseMoneyInput(newMedicinePrice);
       if (!safeName) {
         throw new Error("Dori nomini kiriting.");
       }
@@ -77,7 +83,7 @@ function NurseMedicinesPage() {
     setEditingMedicineId(medicine._id);
     setEditForm({
       name: medicine.name || "",
-      price: medicine.price ? String(medicine.price) : ""
+      price: formatMoneyInput(medicine.price)
     });
     resetMessages();
   };
@@ -94,8 +100,8 @@ function NurseMedicinesPage() {
     resetMessages();
     setUpdating(true);
     try {
-      const safeName = editForm.name.trim();
-      const safePrice = Number(editForm.price);
+      const safeName = toTitleCaseName(editForm.name).trim();
+      const safePrice = parseMoneyInput(editForm.price);
 
       if (!safeName) {
         throw new Error("Dori nomini kiriting.");
@@ -168,16 +174,17 @@ function NurseMedicinesPage() {
           <Input
             label="Dori nomi"
             value={newMedicineName}
-            onChange={(e) => setNewMedicineName(e.target.value)}
+            onChange={(e) => setNewMedicineName(toTitleCaseName(e.target.value))}
             placeholder="Masalan: Paracetamol"
           />
           <Input
             label="Narxi"
-            type="number"
-            min="1"
+            type="text"
+            inputMode="numeric"
+            maxLength={7}
             value={newMedicinePrice}
-            onChange={(e) => setNewMedicinePrice(e.target.value)}
-            placeholder="Masalan: 12000"
+            onChange={(e) => setNewMedicinePrice(formatMoneyInput(e.target.value))}
+            placeholder="Masalan: 12 000"
           />
           <Button type="submit" className="h-fit self-end" loading={saving}>
             Qoshish
@@ -195,14 +202,25 @@ function NurseMedicinesPage() {
             <Input
               label="Dori nomi"
               value={editForm.name}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  name: toTitleCaseName(e.target.value)
+                }))
+              }
             />
             <Input
               label="Narxi"
-              type="number"
-              min="1"
+              type="text"
+              inputMode="numeric"
+              maxLength={7}
               value={editForm.price}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  price: formatMoneyInput(e.target.value)
+                }))
+              }
             />
             <Button type="submit" className="h-fit self-end" loading={updating}>
               Saqlash

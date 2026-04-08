@@ -7,7 +7,13 @@ import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
 import ConfirmActionModal from "../components/ConfirmActionModal.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  formatMoneyInput,
+  parseMoneyInput,
+  toTitleCaseName
+} from "../utils/format.js";
 
 function LorServiceCreatePage() {
   const { user } = useAuth();
@@ -63,8 +69,8 @@ function LorServiceCreatePage() {
     setSavingService(true);
 
     try {
-      const safeName = newServiceForm.name.trim();
-      const safePrice = Number(newServiceForm.price);
+      const safeName = toTitleCaseName(newServiceForm.name).trim();
+      const safePrice = parseMoneyInput(newServiceForm.price);
 
       if (!safeName) {
         throw new Error("Xizmat nomini kiriting.");
@@ -98,7 +104,7 @@ function LorServiceCreatePage() {
     setEditingServiceId(service._id);
     setEditForm({
       name: service.name || "",
-      price: service.price ? String(service.price) : ""
+      price: formatMoneyInput(service.price)
     });
     resetMessages();
   };
@@ -115,8 +121,8 @@ function LorServiceCreatePage() {
     resetMessages();
     setUpdating(true);
     try {
-      const safeName = editForm.name.trim();
-      const safePrice = Number(editForm.price);
+      const safeName = toTitleCaseName(editForm.name).trim();
+      const safePrice = parseMoneyInput(editForm.price);
 
       if (!safeName) {
         throw new Error("Xizmat nomini kiriting.");
@@ -190,16 +196,23 @@ function LorServiceCreatePage() {
             label="Xizmat nomi"
             value={newServiceForm.name}
             onChange={(e) =>
-              setNewServiceForm((prev) => ({ ...prev, name: e.target.value }))
+              setNewServiceForm((prev) => ({
+                ...prev,
+                name: toTitleCaseName(e.target.value)
+              }))
             }
           />
           <Input
             label="Narxi"
-            type="number"
-            min="1"
+            type="text"
+            inputMode="numeric"
+            maxLength={7}
             value={newServiceForm.price}
             onChange={(e) =>
-              setNewServiceForm((prev) => ({ ...prev, price: e.target.value }))
+              setNewServiceForm((prev) => ({
+                ...prev,
+                price: formatMoneyInput(e.target.value)
+              }))
             }
           />
           <Button type="submit" className="h-fit self-end" loading={savingService}>
@@ -218,14 +231,25 @@ function LorServiceCreatePage() {
             <Input
               label="Xizmat nomi"
               value={editForm.name}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  name: toTitleCaseName(e.target.value)
+                }))
+              }
             />
             <Input
               label="Narxi"
-              type="number"
-              min="1"
+              type="text"
+              inputMode="numeric"
+              maxLength={7}
               value={editForm.price}
-              onChange={(e) => setEditForm((prev) => ({ ...prev, price: e.target.value }))}
+              onChange={(e) =>
+                setEditForm((prev) => ({
+                  ...prev,
+                  price: formatMoneyInput(e.target.value)
+                }))
+              }
             />
             <Button type="submit" className="h-fit self-end" loading={updating}>
               Saqlash

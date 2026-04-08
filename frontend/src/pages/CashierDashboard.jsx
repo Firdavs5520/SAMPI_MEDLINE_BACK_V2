@@ -7,7 +7,13 @@ import Table from "../components/Table.jsx";
 import SelectMenu from "../components/SelectMenu.jsx";
 import DatePickerField from "../components/DatePickerField.jsx";
 import cashierService from "../services/cashierService.js";
-import { extractErrorMessage, formatCurrency } from "../utils/format.js";
+import {
+  extractErrorMessage,
+  formatCurrency,
+  formatMoneyInput,
+  formatPhoneInput,
+  toTitleCaseName
+} from "../utils/format.js";
 
 const SECTION_META = {
   "nurse-patients": {
@@ -126,36 +132,6 @@ const formatDateInput = (value) => {
   return `${year}-${month}-${day}`;
 };
 
-const toTitleCase = (value) =>
-  String(value || "")
-    .toLocaleLowerCase("uz-UZ")
-    .replace(/\s{2,}/g, " ")
-    .replace(/(^|\s)(\p{L})/gu, (full, space, letter) => {
-      return `${space}${letter.toLocaleUpperCase("uz-UZ")}`;
-    });
-
-const formatMoneyInput = (value) => {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 6);
-  if (!digits) return "";
-  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-};
-
-const formatPhoneInput = (value) => {
-  let digits = String(value || "").replace(/\D/g, "");
-  if (digits.startsWith("998")) {
-    digits = digits.slice(3);
-  }
-
-  digits = digits.slice(0, 9);
-
-  const p1 = digits.slice(0, 2);
-  const p2 = digits.slice(2, 5);
-  const p3 = digits.slice(5, 7);
-  const p4 = digits.slice(7, 9);
-
-  return [p1, p2, p3, p4].filter(Boolean).join(" ");
-};
-
 const safeNumber = (value, fallback = 0) => {
   const normalized =
     typeof value === "string" ? value.replace(/[^\d.-]/g, "") : value;
@@ -223,7 +199,8 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     forcedSection === "nurse-entries" ||
     forcedSection === "nurse-history" ||
     forcedSection === "lor-entries" ||
-    forcedSection === "lor-history";
+    forcedSection === "lor-history" ||
+    forcedSection === "journal";
   const specialistPageType = forcedSection === "nurse-specialists" ? "nurse" : "lor";
 
   const [loading, setLoading] = useState(true);
@@ -442,7 +419,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     }
 
     if (key === "patientName") {
-      setForm((prev) => ({ ...prev, patientName: toTitleCase(value) }));
+      setForm((prev) => ({ ...prev, patientName: toTitleCaseName(value) }));
       return;
     }
 
