@@ -85,6 +85,13 @@ function NurseDashboard() {
   const [serviceSearch, setServiceSearch] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const sectionTheme = {
+    headerCard: "border-rose-200 bg-rose-50/70",
+    badge: "bg-rose-100 text-rose-800 border border-rose-200",
+    alertBox: "border-rose-200 bg-rose-50 text-rose-800",
+    formCard: "border-rose-200",
+    submitButton: "bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
+  };
 
   const nurseMedicines = useMemo(() => medicines, [medicines]);
   const filteredNurseMedicines = useMemo(() => {
@@ -328,7 +335,26 @@ function NurseDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="card p-4">
+      <div className={`card p-4 sm:p-5 ${sectionTheme.headerCard}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">Hamshira paneli</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Dorilar va xizmatlarni tez tanlash hamda chek chiqarish bo'limi.
+            </p>
+          </div>
+          <span
+            className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide ${sectionTheme.badge}`}
+          >
+            NURSE BO'LIMI
+          </span>
+        </div>
+        <div className={`mt-3 rounded-xl border px-3 py-2 text-sm font-medium ${sectionTheme.alertBox}`}>
+          Diqqat: faqat nurse xizmatlari va mavjud dorilar bilan ishlaysiz.
+        </div>
+      </div>
+
+      <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
         <h2 className="text-lg font-semibold text-slate-800">1-qadam: Dorilarni tanlang</h2>
         <p className="mb-4 text-sm text-slate-500">
           Kerakli dorilarni belgilang. Omborda bo'lmasa "QOLMADI" holatda chiqadi.
@@ -405,7 +431,7 @@ function NurseDashboard() {
       </div>
 
       {selectedMedicineIds.length > 0 ? (
-        <div className="card p-4">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <h3 className="text-base font-semibold text-slate-800">Tanlangan dorilar</h3>
           <div className="mt-3 space-y-3">
             {selectedMedicineIds.map((medicineId) => {
@@ -445,7 +471,7 @@ function NurseDashboard() {
         </div>
       ) : null}
 
-      <div className="card p-4">
+      <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
         <h2 className="text-lg font-semibold text-slate-800">2-qadam: Xizmatlarni tanlang</h2>
         <p className="mb-4 text-sm text-slate-500">
           Hamshira xizmatlari 1/2/3-marta narxlari bilan chiqadi.
@@ -513,7 +539,7 @@ function NurseDashboard() {
       </div>
 
       {selectedServiceIds.length > 0 ? (
-        <div className="card p-4">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <h3 className="text-base font-semibold text-slate-800">Tanlangan xizmatlar</h3>
           <div className="mt-3 space-y-3">
             {selectedServiceIds.map((serviceId) => {
@@ -577,7 +603,7 @@ function NurseDashboard() {
       ) : null}
 
       {hasAnySelection ? (
-        <div className="card p-4">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <h2 className="text-lg font-semibold text-slate-800">
             3-qadam: Bemor ma'lumotini kiriting
           </h2>
@@ -606,14 +632,18 @@ function NurseDashboard() {
             </div>
 
             <div className="mt-4 flex justify-end">
-              <Button type="submit" loading={submittingCheckout}>
+              <Button
+                type="submit"
+                loading={submittingCheckout}
+                className={sectionTheme.submitButton}
+              >
                 Chek chiqarish
               </Button>
             </div>
           </form>
         </div>
       ) : (
-        <div className="card p-4">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <p className="text-sm text-slate-600">
             Pastdagi bemor ma'lumot bo'limi chiqishi uchun avval dori yoki xizmat tanlang.
           </p>

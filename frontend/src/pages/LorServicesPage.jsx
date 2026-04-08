@@ -36,6 +36,13 @@ function LorServicesPage() {
   const [patient, setPatient] = useState({ fullName: "" });
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const sectionTheme = {
+    headerCard: "border-sky-200 bg-sky-50/70",
+    badge: "bg-sky-100 text-sky-800 border border-sky-200",
+    alertBox: "border-sky-200 bg-sky-50 text-sky-800",
+    formCard: "border-sky-200",
+    submitButton: "bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
+  };
 
   const sortedServices = useMemo(
     () =>
@@ -190,7 +197,26 @@ function LorServicesPage() {
 
   return (
     <div className="space-y-6 overflow-x-hidden">
-      <div className="card p-4 sm:p-5">
+      <div className={`card p-4 sm:p-5 ${sectionTheme.headerCard}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">LOR paneli</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              LOR xizmatlarini tanlab, bemor uchun tez chek chiqarish bo'limi.
+            </p>
+          </div>
+          <span
+            className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide ${sectionTheme.badge}`}
+          >
+            LOR BO'LIMI
+          </span>
+        </div>
+        <div className={`mt-3 rounded-xl border px-3 py-2 text-sm font-medium ${sectionTheme.alertBox}`}>
+          Tanlangan LOR: {lorIdentity ? lorIdentity.toUpperCase() : "-"}.
+        </div>
+      </div>
+
+      <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
         <h2 className="text-lg font-semibold text-slate-800">1-qadam: Xizmat tanlash</h2>
         <p className="mb-2 text-sm text-slate-500">
           Xizmatlarni tugma orqali tez tanlang.
@@ -250,7 +276,7 @@ function LorServicesPage() {
       </div>
 
       {selectedServiceIds.length > 0 ? (
-        <div className="card p-4 sm:p-5">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <h2 className="text-lg font-semibold text-slate-800">
             2-qadam: Tanlangan xizmatlar miqdori
           </h2>
@@ -293,14 +319,14 @@ function LorServicesPage() {
           </div>
         </div>
       ) : (
-        <div className="card p-4 sm:p-5">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <p className="text-sm text-slate-600">
             Miqdor bo'limi chiqishi uchun avval xizmat tanlang.
           </p>
         </div>
       )}
 
-      <div className="card p-4 sm:p-5">
+      <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
         <h2 className="text-lg font-semibold text-slate-800">3-qadam: Bemor ma'lumoti</h2>
         <p className="mb-4 text-sm text-slate-500">
           Bemor F.I.O ni kiriting, keyin chekni bir marta bosib chiqaring.
@@ -326,7 +352,11 @@ function LorServicesPage() {
             />
           </div>
 
-          <Button type="submit" loading={submittingCheckout}>
+          <Button
+            type="submit"
+            loading={submittingCheckout}
+            className={sectionTheme.submitButton}
+          >
             Tez chek chiqarish
           </Button>
         </form>

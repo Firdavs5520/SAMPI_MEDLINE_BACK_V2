@@ -27,6 +27,13 @@ function DeliveryDashboard() {
   const [medicineSearch, setMedicineSearch] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const sectionTheme = {
+    headerCard: "border-cyan-200 bg-cyan-50/70",
+    badge: "bg-cyan-100 text-cyan-800 border border-cyan-200",
+    alertBox: "border-cyan-200 bg-cyan-50 text-cyan-800",
+    formCard: "border-cyan-200",
+    submitButton: "bg-cyan-600 hover:bg-cyan-700 focus:ring-cyan-300"
+  };
 
   const sortedMedicines = useMemo(
     () =>
@@ -135,7 +142,26 @@ function DeliveryDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="card p-4">
+      <div className={`card p-4 sm:p-5 ${sectionTheme.headerCard}`}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-slate-800">Kuryer paneli</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Ombordagi dorilarni tez tanlash va ko'p miqdorda qoldiq qo'shish bo'limi.
+            </p>
+          </div>
+          <span
+            className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold tracking-wide ${sectionTheme.badge}`}
+          >
+            DELIVERY BO'LIMI
+          </span>
+        </div>
+        <div className={`mt-3 rounded-xl border px-3 py-2 text-sm font-medium ${sectionTheme.alertBox}`}>
+          Bir nechta dorini tanlab, bitta bosishda omborga qo'shishingiz mumkin.
+        </div>
+      </div>
+
+      <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
         <h2 className="text-lg font-semibold text-slate-800">1-qadam: Dorilarni tanlang</h2>
         <p className="mb-4 text-sm text-slate-500">
           Kuryer bir nechta dorini tugma orqali tanlaydi.
@@ -190,7 +216,7 @@ function DeliveryDashboard() {
       </div>
 
       {selectedMedicineIds.length > 0 ? (
-        <div className="card p-4">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <h2 className="text-lg font-semibold text-slate-800">
             2-qadam: Tanlangan dorilar miqdorini kiriting
           </h2>
@@ -238,13 +264,17 @@ function DeliveryDashboard() {
           </div>
 
           <div className="mt-4">
-            <Button loading={savingStock} onClick={handleBatchRestock}>
+            <Button
+              loading={savingStock}
+              onClick={handleBatchRestock}
+              className={sectionTheme.submitButton}
+            >
               Omborga qo'shish
             </Button>
           </div>
         </div>
       ) : (
-        <div className="card p-4">
+        <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
           <p className="text-sm text-slate-600">
             Miqdor kiritish bo'limi chiqishi uchun avval dorilarni tanlang.
           </p>
@@ -254,7 +284,7 @@ function DeliveryDashboard() {
       <Alert type="success" message={success} />
       <Alert type="error" message={error} />
 
-      <div className="card p-4">
+      <div className={`card p-4 sm:p-5 ${sectionTheme.formCard}`}>
         <h2 className="mb-4 text-lg font-semibold text-slate-800">Dorilar ro'yxati</h2>
         <Table
           data={sortedMedicines}
