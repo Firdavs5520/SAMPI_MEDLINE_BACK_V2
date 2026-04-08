@@ -306,23 +306,30 @@ function LorServicesPage() {
           Bemor F.I.O ni kiriting, keyin chekni bir marta bosib chiqaring.
         </p>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-1">
-          <Input
-            label="Bemor F.I.O"
-            value={patient.fullName}
-            placeholder="Masalan: Ali Valiyev"
-            onChange={(e) =>
-              setPatient((prev) => ({
-                ...prev,
-                fullName: toTitleCaseName(e.target.value)
-              }))
-            }
-          />
-        </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleCreateCheckout();
+          }}
+        >
+          <div className="mb-4 grid gap-3 md:grid-cols-1">
+            <Input
+              label="Bemor F.I.O"
+              value={patient.fullName}
+              placeholder="Masalan: Ali Valiyev"
+              onChange={(e) =>
+                setPatient((prev) => ({
+                  ...prev,
+                  fullName: toTitleCaseName(e.target.value)
+                }))
+              }
+            />
+          </div>
 
-        <Button loading={submittingCheckout} onClick={handleCreateCheckout}>
-          Tez chek chiqarish
-        </Button>
+          <Button type="submit" loading={submittingCheckout}>
+            Tez chek chiqarish
+          </Button>
+        </form>
       </div>
 
       <Alert type="success" message={success} />

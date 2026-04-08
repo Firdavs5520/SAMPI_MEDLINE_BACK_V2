@@ -35,7 +35,8 @@ const buildItemRows = (items, itemType) => {
     .join("");
 };
 
-const buildCheckPrintHtml = (check) => {
+const buildCheckPrintHtml = (check, options = {}) => {
+  const { inline = false } = options;
   const medicineRows = buildItemRows(check.items, "medicine");
   const serviceRows = buildItemRows(check.items, "service");
 
@@ -178,7 +179,10 @@ const buildCheckPrintHtml = (check) => {
       </div>
     </div>
 
-    <script>
+    ${
+      inline
+        ? ""
+        : `<script>
       let didPrint = false;
       function runPrint() {
         if (didPrint) return;
@@ -203,12 +207,29 @@ const buildCheckPrintHtml = (check) => {
         }
         window.close();
       };
-    </script>
+    </script>`
+    }
   </body>
 </html>`;
 };
 
-export const openPendingPrintTab = () => {
+const isStandalonePwa = () => {
+  try {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true ||
+      document.referrer.startsWith("android-app://")
+    );
+  } catch (error) {
+    return false;
+  }
+};
+
+const openInlinePrintSession = () => ({
+  __inlinePrint: true
+});
+
+const openBrowserPrintTab = () => {
   const printTab = window.open("about:blank", "_blank");
   if (!printTab) return null;
 
@@ -217,20 +238,84 @@ export const openPendingPrintTab = () => {
     "<!doctype html><html><head><title>Chek tayyorlanmoqda...</title></head><body style='font-family: \"Courier New\", Courier, monospace; padding: 12px;'>Chek tayyorlanmoqda...</body></html>"
   );
   printTab.document.close();
-  return printTab;
+  return {
+    __inlinePrint: false,
+    tab: printTab
+  };
 };
 
-export const writeCheckToPrintTab = (printTab, check) => {
-  if (!printTab || printTab.closed) return false;
+const printInsideCurrentApp = (check) => {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  document.body.appendChild(iframe);
 
-  printTab.document.open();
-  printTab.document.write(buildCheckPrintHtml(check));
-  printTab.document.close();
+  const frameWindow = iframe.contentWindow;
+  const frameDocument = frameWindow?.document;
+  if (!frameWindow || !frameDocument) {
+    iframe.remove();
+    return false;
+  }
+
+  const cleanup = () => {
+    setTimeout(() => {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    }, 100);
+  };
+
+  frameWindow.addEventListener("afterprint", cleanup, { once: true });
+  setTimeout(cleanup, 60000);
+
+  frameDocument.open();
+  frameDocument.write(buildCheckPrintHtml(check, { inline: true }));
+  frameDocument.close();
+
+  setTimeout(() => {
+    try {
+      frameWindow.focus();
+      frameWindow.print();
+    } catch (error) {
+      cleanup();
+    }
+  }, 40);
+
   return true;
 };
 
-export const closePrintTab = (printTab) => {
-  if (printTab && !printTab.closed) {
-    printTab.close();
+export const openPendingPrintTab = () => {
+  if (isStandalonePwa()) {
+    return openInlinePrintSession();
+  }
+
+  return openBrowserPrintTab();
+};
+
+export const writeCheckToPrintTab = (printSession, check) => {
+  if (!printSession) return false;
+
+  if (printSession.__inlinePrint) {
+    return printInsideCurrentApp(check);
+  }
+
+  if (!printSession.tab || printSession.tab.closed) return false;
+
+  printSession.tab.document.open();
+  printSession.tab.document.write(buildCheckPrintHtml(check));
+  printSession.tab.document.close();
+  return true;
+};
+
+export const closePrintTab = (printSession) => {
+  if (!printSession || printSession.__inlinePrint) return;
+  if (printSession.tab && !printSession.tab.closed) {
+    printSession.tab.close();
   }
 };

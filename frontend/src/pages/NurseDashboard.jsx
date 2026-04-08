@@ -585,25 +585,32 @@ function NurseDashboard() {
             Bemor F.I.O ni kiriting, so'ng chek chiqaring.
           </p>
 
-          <div className="grid gap-3 md:grid-cols-1">
-            <Input
-              label="Bemor F.I.O"
-              value={patient.fullName}
-              placeholder="Masalan: Ali Valiyev"
-              onChange={(e) =>
-                setPatient((prev) => ({
-                  ...prev,
-                  fullName: toTitleCaseName(e.target.value)
-                }))
-              }
-            />
-          </div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleCreateCheckout();
+            }}
+          >
+            <div className="grid gap-3 md:grid-cols-1">
+              <Input
+                label="Bemor F.I.O"
+                value={patient.fullName}
+                placeholder="Masalan: Ali Valiyev"
+                onChange={(e) =>
+                  setPatient((prev) => ({
+                    ...prev,
+                    fullName: toTitleCaseName(e.target.value)
+                  }))
+                }
+              />
+            </div>
 
-          <div className="mt-4 flex justify-end">
-            <Button loading={submittingCheckout} onClick={handleCreateCheckout}>
-              Chek chiqarish
-            </Button>
-          </div>
+            <div className="mt-4 flex justify-end">
+              <Button type="submit" loading={submittingCheckout}>
+                Chek chiqarish
+              </Button>
+            </div>
+          </form>
         </div>
       ) : (
         <div className="card p-4">
