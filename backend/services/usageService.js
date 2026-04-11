@@ -413,9 +413,19 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
     "Duplicate service is not allowed in one checkout"
   );
 
-  const normalizedPatient = normalizePatient(patient);
+  const normalizedMedicineItems = medicineItems.map((item) => ({
+    medicineId: item.medicineId,
+    quantity: Number(item.quantity)
+  }));
+  const normalizedServiceItems = serviceItems.map((item) => ({
+    serviceId: item.serviceId,
+    quantity: Number(item.quantity),
+    priceTier: item.priceTier
+  }));
+
   normalizedMedicineItems.forEach((item) => assertObjectId(item.medicineId, "Dori ID"));
   normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
+  const normalizedPatient = normalizePatient(patient);
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -425,15 +435,6 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
     const checkItems = [];
     const medicineUsageDocs = [];
     const serviceUsageDocs = [];
-    const normalizedMedicineItems = medicineItems.map((item) => ({
-      medicineId: item.medicineId,
-      quantity: Number(item.quantity)
-    }));
-    const normalizedServiceItems = serviceItems.map((item) => ({
-      serviceId: item.serviceId,
-      quantity: Number(item.quantity),
-      priceTier: item.priceTier
-    }));
 
     const medicineIds = normalizedMedicineItems.map((item) => item.medicineId);
     const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
@@ -590,9 +591,15 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
     "Duplicate service is not allowed in one checkout"
   );
 
+  const normalizedServiceItems = serviceItems.map((item) => ({
+    serviceId: item.serviceId,
+    quantity: Number(item.quantity),
+    priceTier: item.priceTier
+  }));
+
+  normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
   const normalizedPatient = normalizePatient(patient);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
-  normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -601,11 +608,6 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
     let total = 0;
     const checkItems = [];
     const serviceUsageDocs = [];
-    const normalizedServiceItems = serviceItems.map((item) => ({
-      serviceId: item.serviceId,
-      quantity: Number(item.quantity),
-      priceTier: item.priceTier
-    }));
     const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
     const serviceDocs = await Service.find({
       _id: { $in: serviceIds }
