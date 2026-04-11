@@ -1,12 +1,16 @@
-const CACHE_NAME = "sampi-medline-v2";
+const CACHE_NAME = "sampi-medline-v4";
 const APP_SHELL = [
   "/",
   "/index.html",
   "/manifest.webmanifest",
+  "/manifest.webmanifest?v=4",
   "/favicon.svg",
-  "/icons/pwa-192.png",
-  "/icons/pwa-512.png",
-  "/icons/pwa-512-maskable.png"
+  "/favicon.ico",
+  "/icons/pwa-192-v4.png",
+  "/icons/pwa-256-v4.png",
+  "/icons/pwa-512-v4.png",
+  "/icons/pwa-512-maskable-v4.png",
+  "/icons/apple-touch-icon-v4.png"
 ];
 
 self.addEventListener("install", (event) => {

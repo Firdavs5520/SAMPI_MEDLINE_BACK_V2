@@ -1,19 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sampi Medline">
-  <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#082f49" />
-      <stop offset="100%" stop-color="#0f766e" />
-    </linearGradient>
-    <linearGradient id="tile" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0ea5a5" />
-      <stop offset="100%" stop-color="#0891b2" />
-    </linearGradient>
-  </defs>
-
-  <rect x="0" y="0" width="512" height="512" rx="120" fill="url(#bg)" />
-  <rect x="14" y="14" width="484" height="484" rx="116" fill="url(#tile)" />
-  <circle cx="256" cy="256" r="170" fill="#ffffff20" stroke="#ffffff" stroke-width="16" />
-  <rect x="230" y="145" width="52" height="222" rx="26" fill="#ffffff" />
-  <rect x="145" y="230" width="222" height="52" rx="26" fill="#ffffff" />
-  <circle cx="398" cy="124" r="30" fill="#f97316" />
+  <rect x="0" y="0" width="512" height="512" fill="#0ea5b8" />
+  <circle cx="256" cy="256" r="170" fill="#d9e3f6" stroke="#ffffff" stroke-width="16" />
+  <rect x="228" y="145" width="56" height="222" rx="28" fill="#ffffff" />
+  <rect x="145" y="228" width="222" height="56" rx="28" fill="#ffffff" />
+  <circle cx="392" cy="120" r="56" fill="#f97316" />
 </svg>
