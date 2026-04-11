@@ -9,7 +9,7 @@ router.use(protect);
 
 router.get("/", serviceController.getAllServices);
 router.get("/:id", serviceController.getServiceById);
-router.post("/", allowRoles("manager", "lor", "nurse"), serviceController.createService);
+router.post("/", allowRoles("lor", "nurse"), serviceController.createService);
 router.patch("/:id", allowRoles("nurse", "lor"), serviceController.updateService);
 router.delete("/:id", allowRoles("nurse", "lor"), serviceController.deleteService);
 

@@ -3,6 +3,29 @@ const MedicineUsage = require("../models/MedicineUsage");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
+
+const safeAbortTransaction = async (session) => {
+  if (!session) return;
+
+  try {
+    if (typeof session.inTransaction === "function" && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+  } catch (_) {
+    // Preserve original error in catch block.
+  }
+};
+
+const findMedicineByNameInsensitive = (name) =>
+  Medicine.findOne({
+    name: {
+      $regex: `^${escapeRegex(name)}$`,
+      $options: "i"
+    }
+  });
+
 const getAllMedicines = async ({ includeArchived = false } = {}) => {
   const filter = includeArchived ? {} : { isArchived: { $ne: true } };
   return Medicine.find(filter).sort({ createdAt: -1 });
@@ -30,7 +53,11 @@ const addMedicine = async ({ name, price, user }) => {
   }
 
   const safeName = name.trim();
-  const existingMedicine = await Medicine.findOne({ name: safeName });
+  if (!safeName) {
+    throw new AppError("Dori nomi majburiy", 400);
+  }
+
+  const existingMedicine = await findMedicineByNameInsensitive(safeName);
 
   if (existingMedicine && existingMedicine.isArchived) {
     existingMedicine.isArchived = false;
@@ -43,6 +70,10 @@ const addMedicine = async ({ name, price, user }) => {
     };
     await existingMedicine.save();
     return existingMedicine;
+  }
+
+  if (existingMedicine) {
+    throw new AppError("Bunday dori nomi allaqachon mavjud", 400);
   }
 
   return Medicine.create({
@@ -83,6 +114,12 @@ const updateMedicine = async ({ medicineId, name, price, user }) => {
     if (!safeName) {
       throw new AppError("Dori nomi majburiy", 400);
     }
+
+    const sameNameMedicine = await findMedicineByNameInsensitive(safeName);
+    if (sameNameMedicine && String(sameNameMedicine._id) !== String(medicine._id)) {
+      throw new AppError("Bunday dori nomi allaqachon mavjud", 400);
+    }
+
     medicine.name = safeName;
   }
 
@@ -158,7 +195,10 @@ const increaseStockBulk = async ({ items }) => {
   const normalizedItems = items.map((item) => {
     const quantity = Number(item?.quantity);
     if (typeof item?.medicineId !== "string" || !item.medicineId.trim()) {
-    throw new AppError("Dori identifikatori majburiy", 400);
+      throw new AppError("Dori identifikatori majburiy", 400);
+    }
+    if (!isValidObjectId(item.medicineId.trim())) {
+      throw new AppError("Dori identifikatori noto'g'ri", 400);
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
       throw new AppError("Har bir miqdor 0 dan katta bo'lishi kerak", 400);
@@ -230,7 +270,7 @@ const increaseStockBulk = async ({ items }) => {
     await session.commitTransaction();
     return updatedMedicines;
   } catch (error) {
-    await session.abortTransaction();
+    await safeAbortTransaction(session);
     throw error;
   } finally {
     session.endSession();

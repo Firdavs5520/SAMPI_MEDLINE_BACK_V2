@@ -13,31 +13,39 @@ const SERVICE_PRICE_TIER_LABELS = {
   third: "3-marta"
 };
 
+const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
+
+const assertObjectId = (value, label) => {
+  if (!isValidObjectId(value)) {
+    throw new AppError(`${label} noto'g'ri`, 400);
+  }
+};
+
+const safeAbortTransaction = async (session) => {
+  if (!session) return;
+
+  try {
+    if (typeof session.inTransaction === "function" && session.inTransaction()) {
+      await session.abortTransaction();
+    }
+  } catch (_) {
+    // Intentionally ignore abort errors to preserve original business error.
+  }
+};
+
 const validateQuantity = (quantity) => {
   if (typeof quantity !== "number" || quantity <= 0) {
     throw new AppError("Miqdor 0 dan katta bo'lishi kerak", 400);
   }
 };
 
-const validatePrice = (price) => {
-  if (typeof price !== "number" || price <= 0 || price >= 1000000) {
-    throw new AppError("Narx 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
-  }
-};
-
-const resolvePrice = (inputPrice, basePrice, label = "Item") => {
-  if (inputPrice === undefined || inputPrice === null || inputPrice === "") {
-    const fallback = Number(basePrice);
-    if (!Number.isFinite(fallback) || fallback <= 0 || fallback >= 1000000) {
-      throw new AppError(`${label} uchun saqlangan narx noto'g'ri`, 400);
-    }
-
-    return fallback;
+const resolvePrice = (basePrice, label = "Item") => {
+  const fallback = Number(basePrice);
+  if (!Number.isFinite(fallback) || fallback <= 0 || fallback >= 1000000) {
+    throw new AppError(`${label} uchun saqlangan narx noto'g'ri`, 400);
   }
 
-  const price = Number(inputPrice);
-  validatePrice(price);
-  return price;
+  return fallback;
 };
 
 const normalizePriceTier = (value) => {
@@ -53,13 +61,7 @@ const normalizePriceTier = (value) => {
   return normalized;
 };
 
-const resolveServicePrice = ({ service, inputPrice, priceTier, userRole }) => {
-  if (inputPrice !== undefined && inputPrice !== null && inputPrice !== "") {
-    const price = Number(inputPrice);
-    validatePrice(price);
-    return { price, priceTier: null, tierLabel: null };
-  }
-
+const resolveServicePrice = ({ service, priceTier, userRole }) => {
   const normalizedTier = normalizePriceTier(priceTier);
   const isNurseService = service?.type === "nurse";
 
@@ -77,7 +79,7 @@ const resolveServicePrice = ({ service, inputPrice, priceTier, userRole }) => {
   }
 
   return {
-    price: resolvePrice(undefined, service?.price, service?.name),
+    price: resolvePrice(service?.price, service?.name),
     priceTier: null,
     tierLabel: null
   };
@@ -209,8 +211,9 @@ const enforceLorServiceOwnership = (service, user) => {
   }
 };
 
-const useMedicine = async ({ medicineId, quantity, price, user }) => {
+const useMedicine = async ({ medicineId, quantity, user }) => {
   validateQuantity(quantity);
+  assertObjectId(medicineId, "Dori ID");
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -226,7 +229,7 @@ const useMedicine = async ({ medicineId, quantity, price, user }) => {
       throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
     }
 
-    const resolvedPrice = resolvePrice(price, medicine.price, medicine.name);
+    const resolvedPrice = resolvePrice(medicine.price, medicine.name);
 
     const [usageRecord] = await MedicineUsage.create(
       [
@@ -265,7 +268,7 @@ const useMedicine = async ({ medicineId, quantity, price, user }) => {
     await session.commitTransaction();
     return { medicine, usage: usageRecord, check };
   } catch (error) {
-    await session.abortTransaction();
+    await safeAbortTransaction(session);
     throw error;
   } finally {
     session.endSession();
@@ -275,13 +278,13 @@ const useMedicine = async ({ medicineId, quantity, price, user }) => {
 const useService = async ({
   serviceId,
   quantity,
-  price,
   priceTier,
   patient,
   lorIdentity,
   user
 }) => {
   validateQuantity(quantity);
+  assertObjectId(serviceId, "Xizmat ID");
   const normalizedPatient =
     user?.role === "lor" ? normalizePatient(patient) : normalizeOptionalPatient(patient);
   const normalizedLorIdentity =
@@ -301,7 +304,6 @@ const useService = async ({
 
     const resolved = resolveServicePrice({
       service,
-      inputPrice: price,
       priceTier,
       userRole: user.role
     });
@@ -347,7 +349,7 @@ const useService = async ({
     await session.commitTransaction();
     return { service, usage: usageRecord, check };
   } catch (error) {
-    await session.abortTransaction();
+    await safeAbortTransaction(session);
     throw error;
   } finally {
     session.endSession();
@@ -412,6 +414,8 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
   );
 
   const normalizedPatient = normalizePatient(patient);
+  normalizedMedicineItems.forEach((item) => assertObjectId(item.medicineId, "Dori ID"));
+  normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -423,32 +427,29 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
     const serviceUsageDocs = [];
     const normalizedMedicineItems = medicineItems.map((item) => ({
       medicineId: item.medicineId,
-      quantity: Number(item.quantity),
-      price: item.price
+      quantity: Number(item.quantity)
     }));
     const normalizedServiceItems = serviceItems.map((item) => ({
       serviceId: item.serviceId,
       quantity: Number(item.quantity),
-      price: item.price,
       priceTier: item.priceTier
     }));
 
     const medicineIds = normalizedMedicineItems.map((item) => item.medicineId);
     const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
 
-    const [medicineDocs, serviceDocs] = await Promise.all([
-      medicineIds.length
-        ? Medicine.find({
-            _id: { $in: medicineIds },
-            isArchived: { $ne: true }
-          }).session(session)
-        : Promise.resolve([]),
-      serviceIds.length
-        ? Service.find({
-            _id: { $in: serviceIds }
-          }).session(session)
-        : Promise.resolve([])
-    ]);
+    const medicineDocs = medicineIds.length
+      ? await Medicine.find({
+          _id: { $in: medicineIds },
+          isArchived: { $ne: true }
+        }).session(session)
+      : [];
+
+    const serviceDocs = serviceIds.length
+      ? await Service.find({
+          _id: { $in: serviceIds }
+        }).session(session)
+      : [];
 
     const medicineMap = new Map(
       medicineDocs.map((medicine) => [medicine._id.toString(), medicine])
@@ -468,7 +469,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
         throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
       }
 
-      const resolvedPrice = resolvePrice(item.price, medicine.price, medicine.name);
+      const resolvedPrice = resolvePrice(medicine.price, medicine.name);
 
       medicineUsageDocs.push({
         medicineId: medicine._id,
@@ -518,7 +519,6 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
 
       const resolved = resolveServicePrice({
         service,
-        inputPrice: item.price,
         priceTier: item.priceTier,
         userRole: user.role
       });
@@ -567,7 +567,7 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
     await session.commitTransaction();
     return { check };
   } catch (error) {
-    await session.abortTransaction();
+    await safeAbortTransaction(session);
     throw error;
   } finally {
     session.endSession();
@@ -592,6 +592,7 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
 
   const normalizedPatient = normalizePatient(patient);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
+  normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -603,7 +604,6 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
     const normalizedServiceItems = serviceItems.map((item) => ({
       serviceId: item.serviceId,
       quantity: Number(item.quantity),
-      price: item.price,
       priceTier: item.priceTier
     }));
     const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
@@ -626,7 +626,6 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
 
       const resolved = resolveServicePrice({
         service,
-        inputPrice: item.price,
         priceTier: item.priceTier,
         userRole: user.role
       });
@@ -670,7 +669,7 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
     await session.commitTransaction();
     return { check };
   } catch (error) {
-    await session.abortTransaction();
+    await safeAbortTransaction(session);
     throw error;
   } finally {
     session.endSession();
