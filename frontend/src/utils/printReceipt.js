@@ -18,27 +18,41 @@ const formatCheckDate = (value) => {
   return safeDate.toLocaleString("uz-UZ");
 };
 
-const buildItemRows = (items, itemType) => {
+const resolveItemType = (item, checkType) => {
+  const fromItem = String(item?.itemType || "").toLowerCase();
+  if (fromItem) return fromItem;
+  const fromCheck = String(checkType || "").toLowerCase();
+  if (fromCheck === "medicine" || fromCheck === "service") return fromCheck;
+  return "";
+};
+
+const buildItemRows = (items, itemType, checkType) => {
   return (items || [])
-    .filter((item) => (item.itemType || "").toLowerCase() === itemType)
+    .filter((item) => resolveItemType(item, checkType) === itemType)
     .map((item) => {
       const quantity = Number(item.quantity) || 0;
       const unitPrice = Number(item.price) || 0;
       const lineTotal = unitPrice * quantity;
-      return `
-        <div class="row">
-          <span>${escapeHtml(item.name)} x${escapeHtml(quantity)}</span>
-          <span>${escapeHtml(formatNumber(lineTotal))}</span>
-        </div>
-      `;
+      const line = `[${escapeHtml(resolveItemType(item, checkType) || checkType)}] ${escapeHtml(item.name)} x${escapeHtml(quantity)}`;
+      return `<div class="row"><span class="name">${line}</span><span class="price">${escapeHtml(formatNumber(lineTotal))} so'm</span></div>`;
     })
     .join("");
 };
 
 const buildCheckPrintHtml = (check, options = {}) => {
   const { inline = false } = options;
-  const medicineRows = buildItemRows(check.items, "medicine");
-  const serviceRows = buildItemRows(check.items, "service");
+  const medicineRows = buildItemRows(check.items, "medicine", check.type);
+  const serviceRows = buildItemRows(check.items, "service", check.type);
+
+  const medicineSection =
+    medicineRows.length > 0
+      ? `<div class="section-title">Dorilar</div><div class="divider"></div>${medicineRows}<div class="divider"></div>`
+      : "";
+
+  const serviceSection =
+    serviceRows.length > 0
+      ? `<div class="section-title">Xizmatlar</div><div class="divider"></div>${serviceRows}<div class="divider"></div>`
+      : "";
 
   return `<!doctype html>
 <html lang="uz">
@@ -46,98 +60,106 @@ const buildCheckPrintHtml = (check, options = {}) => {
     <meta charset="UTF-8" />
     <title>Chek - ${escapeHtml(check.checkId)}</title>
     <style>
-      @page {
-        size: 58mm auto;
-        margin: 0;
-      }
+      @import url("https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap");
 
-      * {
-        box-sizing: border-box;
-      }
-
+      @page { size: 58mm auto; margin: 0; }
       html, body {
         margin: 0;
         padding: 0;
         width: 58mm;
-        background: #fff;
-        font-family: "Courier New", Courier, monospace;
+        font-family: "Golos Text", sans-serif;
+        font-size: 12px;
         color: #000;
-        overflow: hidden;
+        background: #fff;
       }
 
-      .check {
-        width: 58mm;
-        padding: 0;
-        text-align: center;
+      * {
+        font-family: "Golos Text", sans-serif;
       }
 
-      .check-inner {
-        width: 48mm;
-        margin: 0 auto;
-        padding: 1px 0;
-      }
-
+      .ticket { width: 58mm; margin: 0; padding: 0; }
+      .inner { width: 48mm; margin: 0 auto; padding: 6px 0; }
       .check-title {
-        font-size: 18px;
+        text-align: center;
+        font-size: 23px;
         font-weight: 900;
-        letter-spacing: 0.2px;
-        white-space: nowrap;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
       }
-
       .divider {
-        border-top: 1px dashed #000;
-        margin: 3px 0;
+        border-top: 2px dashed #000;
+        margin: 6px 0;
       }
-
       .text {
-        font-size: 13px;
-        margin: 1px 0;
-      }
-
-      .section-title {
+        text-align: center;
         font-size: 16px;
-        font-weight: 700;
-        margin-top: 2px;
+        margin: 2px 0;
       }
-
+      .section-title {
+        text-align: center;
+        font-size: 18px;
+        font-weight: 800;
+      }
       .row {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        font-size: 13px;
-        margin: 1px 0;
-        gap: 1.5mm;
+        gap: 6px;
+        font-size: 16px;
+        margin: 2px 0;
       }
-
-      .row span:first-child {
-        flex: 1;
-        min-width: 0;
-        max-width: 31mm;
+      .name {
+        max-width: 38mm;
         word-break: break-word;
         text-align: left;
       }
-
-      .row span:last-child {
+      .price {
         white-space: nowrap;
+        font-weight: 600;
       }
-
       .jami {
         display: flex;
         justify-content: space-between;
+        font-size: 16px;
+        font-weight: 800;
+      }
+      .meta {
+        font-size: 14px;
+        line-height: 1.35;
+      }
+      .footer {
+        margin-top: 10px;
+        text-align: center;
         font-size: 15px;
-        font-weight: 700;
-        margin-top: 3px;
       }
 
-      .footer {
-        font-size: 12px;
+      .help {
+        margin-bottom: 6px;
+        padding: 2px;
+        border: 1px dashed #555;
+        text-align: center;
+        font-size: 11px;
+      }
+      .print-btn {
         margin-top: 6px;
+        width: 100%;
+        border: 1px solid #111;
+        background: #fff;
+        padding: 6px 8px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      @media print {
+        .help, .print-btn {
+          display: none;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="check">
-      <div class="check-inner">
+    <div class="ticket">
+      <div class="inner">
+        <div class="help">Chop etish uchun Enter bosing</div>
         <div class="check-title">SAMPI MEDLINE</div>
 
         <div class="divider"></div>
@@ -146,44 +168,31 @@ const buildCheckPrintHtml = (check, options = {}) => {
         <div class="text">Sana: ${escapeHtml(formatCheckDate(check.createdAt))}</div>
 
         <div class="divider"></div>
-
-        ${
-          medicineRows
-            ? `
-              <div class="section-title">Dorilar</div>
-              <div class="divider"></div>
-              ${medicineRows}
-              <div class="divider"></div>
-            `
-            : ""
-        }
-
-        ${
-          serviceRows
-            ? `
-              <div class="section-title">Xizmatlar</div>
-              <div class="divider"></div>
-              ${serviceRows}
-              <div class="divider"></div>
-            `
-            : ""
-        }
+        ${medicineSection}
+        ${serviceSection}
 
         <div class="jami">
           <span>Jami:</span>
           <span>${escapeHtml(formatNumber(check.total))} so'm</span>
         </div>
-
         <div class="divider"></div>
+
+        <div class="meta">
+          <div>Chek: ${escapeHtml(check.checkId)}</div>
+          <div>Xodim: ${escapeHtml(check.createdBy?.name || "-")}</div>
+          <div>Rol: ${escapeHtml(check.createdBy?.role || "-")}</div>
+        </div>
+
         <div class="footer">Doimo sog'-salomat bo'ling</div>
+        <button id="printBtn" class="print-btn">Chop etish (Enter)</button>
       </div>
     </div>
-
     ${
       inline
         ? ""
         : `<script>
       let didPrint = false;
+
       function runPrint() {
         if (didPrint) return;
         didPrint = true;
@@ -191,7 +200,7 @@ const buildCheckPrintHtml = (check, options = {}) => {
       }
 
       window.onload = function () {
-        setTimeout(runPrint, 60);
+        window.focus();
       };
 
       document.addEventListener("keydown", function (event) {
@@ -200,6 +209,11 @@ const buildCheckPrintHtml = (check, options = {}) => {
           runPrint();
         }
       });
+
+      const printBtn = document.getElementById("printBtn");
+      if (printBtn) {
+        printBtn.addEventListener("click", runPrint);
+      }
 
       window.onafterprint = function () {
         if (window.opener && !window.opener.closed) {
@@ -235,7 +249,7 @@ const openBrowserPrintTab = () => {
 
   printTab.document.open();
   printTab.document.write(
-    "<!doctype html><html><head><title>Chek tayyorlanmoqda...</title></head><body style='font-family: \"Courier New\", Courier, monospace; padding: 12px;'>Chek tayyorlanmoqda...</body></html>"
+    "<!doctype html><html><head><title>Chek tayyorlanmoqda...</title><style>@import url('https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap');body{font-family:'Golos Text',sans-serif;font-size:16px;font-weight:700;padding:12px;}</style></head><body>Chek tayyorlanmoqda...</body></html>"
   );
   printTab.document.close();
   return {
@@ -278,14 +292,22 @@ const printInsideCurrentApp = (check) => {
   frameDocument.write(buildCheckPrintHtml(check, { inline: true }));
   frameDocument.close();
 
-  setTimeout(() => {
-    try {
-      frameWindow.focus();
-      frameWindow.print();
-    } catch (error) {
-      cleanup();
-    }
-  }, 40);
+  const startPrint = () => {
+    setTimeout(() => {
+      try {
+        frameWindow.focus();
+        frameWindow.print();
+      } catch (error) {
+        cleanup();
+      }
+    }, 120);
+  };
+
+  if (frameDocument.fonts && frameDocument.fonts.ready) {
+    frameDocument.fonts.ready.then(startPrint).catch(startPrint);
+  } else {
+    startPrint();
+  }
 
   return true;
 };

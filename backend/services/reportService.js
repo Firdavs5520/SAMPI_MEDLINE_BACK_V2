@@ -2,32 +2,54 @@ const Check = require("../models/Check");
 const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
 const STAFF_ROLES = ["nurse", "lor"];
+const TASHKENT_OFFSET_HOURS = 5;
+const TASHKENT_OFFSET_MS = TASHKENT_OFFSET_HOURS * 60 * 60 * 1000;
+
+const getNowInTashkent = (nowUtc = new Date()) => new Date(nowUtc.getTime() + TASHKENT_OFFSET_MS);
+const toUtcFromTashkentDate = (dateInTashkentTime) =>
+  new Date(dateInTashkentTime.getTime() - TASHKENT_OFFSET_MS);
+
+const getTashkentDayStart = (dateInTashkentTime) =>
+  new Date(
+    Date.UTC(
+      dateInTashkentTime.getUTCFullYear(),
+      dateInTashkentTime.getUTCMonth(),
+      dateInTashkentTime.getUTCDate(),
+      0,
+      0,
+      0,
+      0
+    )
+  );
 
 const getAllChecks = async () => {
   return Check.find().sort({ createdAt: -1 });
 };
 
 const resolveRevenueMatch = (period) => {
-  const now = new Date();
+  const nowUtc = new Date();
+  const nowInTashkent = getNowInTashkent(nowUtc);
   const safePeriod = String(period || "all").toLowerCase();
 
   if (safePeriod === "today") {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return { createdAt: { $gte: start, $lte: now } };
+    const dayStartInTashkent = getTashkentDayStart(nowInTashkent);
+    const startUtc = toUtcFromTashkentDate(dayStartInTashkent);
+    return { createdAt: { $gte: startUtc, $lte: nowUtc } };
   }
 
   if (safePeriod === "week") {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 6);
-    start.setHours(0, 0, 0, 0);
-    return { createdAt: { $gte: start, $lte: now } };
+    const weekStartInTashkent = getTashkentDayStart(nowInTashkent);
+    weekStartInTashkent.setUTCDate(weekStartInTashkent.getUTCDate() - 6);
+    const startUtc = toUtcFromTashkentDate(weekStartInTashkent);
+    return { createdAt: { $gte: startUtc, $lte: nowUtc } };
   }
 
   if (safePeriod === "month") {
-    const start = new Date(now);
-    start.setMonth(now.getMonth() - 1);
-    start.setHours(0, 0, 0, 0);
-    return { createdAt: { $gte: start, $lte: now } };
+    const monthStartInTashkent = new Date(nowInTashkent);
+    monthStartInTashkent.setUTCMonth(monthStartInTashkent.getUTCMonth() - 1);
+    monthStartInTashkent.setUTCHours(0, 0, 0, 0);
+    const startUtc = toUtcFromTashkentDate(monthStartInTashkent);
+    return { createdAt: { $gte: startUtc, $lte: nowUtc } };
   }
 
   return {};

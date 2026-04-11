@@ -58,8 +58,8 @@ const createService = async ({ name, type, price, priceOptions, user }) => {
   if (user.role === "nurse" && type !== "nurse") {
     throw new AppError("Hamshira faqat nurse xizmatlarini qo'sha oladi", 403);
   }
-  if (!["manager", "lor", "nurse"].includes(user.role)) {
-    throw new AppError("Xizmatni faqat menejer, lor yoki hamshira qo'sha oladi", 403);
+  if (!["lor", "nurse"].includes(user.role)) {
+    throw new AppError("Xizmatni faqat lor yoki hamshira qo'sha oladi", 403);
   }
 
   let normalizedPrice = Number(price);
@@ -112,9 +112,7 @@ const updateService = async ({ serviceId, name, price, priceOptions, user }) => 
     throw new AppError("LOR faqat lor xizmatlarini tahrirlay oladi", 403);
   }
 
-  if (user.role === "lor") {
-    assertServiceOwnership(service, user);
-  }
+  assertServiceOwnership(service, user);
 
   const hasName = typeof name === "string";
   const hasPrice = price !== undefined && price !== null && price !== "";
@@ -190,9 +188,7 @@ const deleteService = async ({ serviceId, user }) => {
     throw new AppError("LOR faqat lor xizmatlarini o'chira oladi", 403);
   }
 
-  if (user.role === "lor") {
-    assertServiceOwnership(service, user);
-  }
+  assertServiceOwnership(service, user);
 
   const usageCount = await ServiceUsage.countDocuments({ serviceId: service._id });
   if (usageCount > 0) {

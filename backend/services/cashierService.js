@@ -117,7 +117,7 @@ const normalizePaymentMethod = (value, { allowAll = false } = {}) => {
   if (!safe) return allowAll ? "all" : "cash";
   if (allowAll && safe === "all") return "all";
   if (!PAYMENT_METHODS.includes(safe)) {
-    throw new AppError("To'lov usuli cash, card, transfer, mixed yoki debt bo'lishi kerak", 400);
+    throw new AppError("To'lov usuli cash, card yoki transfer bo'lishi kerak", 400);
   }
   return safe;
 };
@@ -197,6 +197,9 @@ const buildListFilter = ({
       entryDate: { $gte: shiftStart, $lte: shiftEnd }
     });
   } else if (safeTimeScope === "history") {
+    andConditions.push({
+      entryDate: { $gte: dayStart, $lte: dayEnd }
+    });
     andConditions.push({
       $or: [{ entryDate: { $lt: shiftStart } }, { entryDate: { $gt: shiftEnd } }]
     });

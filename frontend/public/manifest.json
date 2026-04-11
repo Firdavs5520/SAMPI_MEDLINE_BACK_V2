@@ -5,8 +5,9 @@
   "lang": "uz-UZ",
   "start_url": "/",
   "scope": "/",
-  "display": "standalone",
-  "orientation": "portrait",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#e6f3f7",
   "theme_color": "#0f766e",
   "icons": [

@@ -8,6 +8,7 @@ import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import BusyOverlay from "../components/BusyOverlay.jsx";
 import QuickSearchInput from "../components/QuickSearchInput.jsx";
+import SelectMenu from "../components/SelectMenu.jsx";
 import {
   extractErrorMessage,
   formatCurrency,
@@ -27,6 +28,10 @@ const priceTierLabels = {
   third: "3-marta"
 };
 const priceTierOrder = ["first", "second", "third"];
+const priceTierOptions = priceTierOrder.map((tierKey) => ({
+  value: tierKey,
+  label: priceTierLabels[tierKey]
+}));
 
 const isValidStoredPrice = (value) => {
   const price = Number(value);
@@ -70,6 +75,20 @@ const normalizeSearch = (value) =>
   String(value ?? "")
     .toLocaleLowerCase("uz-UZ")
     .trim();
+
+const normalizeBoundedQuantity = (value, maxValue) => {
+  const parsedValue = Number(value);
+  const parsedMax = Number(maxValue);
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return "1";
+  }
+
+  const safeMax =
+    Number.isFinite(parsedMax) && parsedMax > 0 ? Math.floor(parsedMax) : 1;
+  const normalized = Math.min(Math.floor(parsedValue), safeMax);
+  return String(Math.max(1, normalized));
+};
 
 function NurseDashboard() {
   const [loading, setLoading] = useState(true);
@@ -147,8 +166,11 @@ function NurseDashboard() {
     setMedicineInputs((prev) => {
       const next = {};
       Object.keys(prev).forEach((key) => {
-        if (nurseMedicines.some((item) => item._id === key)) {
-          next[key] = prev[key];
+        const medicine = nurseMedicines.find((item) => item._id === key);
+        if (medicine) {
+          next[key] = {
+            quantity: normalizeBoundedQuantity(prev[key]?.quantity || "1", medicine.stock)
+          };
         }
       });
       return next;
@@ -209,10 +231,18 @@ function NurseDashboard() {
   };
 
   const updateMedicineInput = (medicineId, value) => {
+    const medicine = nurseMedicines.find((item) => item._id === medicineId);
+    if (!medicine) return;
+
+    const nextQuantity =
+      value === ""
+        ? ""
+        : normalizeBoundedQuantity(value, medicine.stock);
+
     setMedicineInputs((prev) => ({
       ...prev,
       [medicineId]: {
-        quantity: value
+        quantity: nextQuantity
       }
     }));
   };
@@ -454,8 +484,16 @@ function NurseDashboard() {
                     label="Miqdor"
                     type="number"
                     min="1"
+                    max={Math.max(Number(medicine?.stock || 1), 1)}
                     value={input.quantity || ""}
                     onChange={(e) => updateMedicineInput(medicineId, e.target.value)}
+                    onBlur={() => {
+                      const currentValue = medicineInputs[medicineId]?.quantity;
+                      updateMedicineInput(
+                        medicineId,
+                        currentValue === "" ? "1" : currentValue
+                      );
+                    }}
                   />
                   <Button
                     variant="secondary"
@@ -571,22 +609,14 @@ function NurseDashboard() {
                     }
                   />
                   <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Narx turi
-                    </label>
-                    <select
+                    <SelectMenu
+                      label="Narx turi"
                       value={priceTier}
-                      onChange={(e) =>
-                        updateServiceInput(serviceId, { priceTier: e.target.value })
+                      options={priceTierOptions}
+                      onChange={(nextValue) =>
+                        updateServiceInput(serviceId, { priceTier: nextValue })
                       }
-                      className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
-                    >
-                      {priceTierOrder.map((tierKey) => (
-                        <option key={tierKey} value={tierKey}>
-                          {priceTierLabels[tierKey]}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <Button
                     variant="secondary"

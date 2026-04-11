@@ -8,6 +8,9 @@ export default {
         "primary-dark": "#0B5E74",
         accent: "#F97316",
         surface: "#F8FAFC"
+      },
+      fontFamily: {
+        golos: ['"Golos Text"', "sans-serif"]
       }
     }
   },

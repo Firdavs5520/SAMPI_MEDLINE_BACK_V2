@@ -243,8 +243,8 @@ function CheckModal({ open, check, onClose }) {
         </>
       }
     >
-      <div className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="space-y-4 font-golos">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 font-golos">
           <h4 className="text-center text-2xl font-black uppercase tracking-wide text-slate-800">
             SAMPI MEDLINE
           </h4>
