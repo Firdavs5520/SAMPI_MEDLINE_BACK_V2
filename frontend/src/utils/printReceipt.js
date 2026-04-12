@@ -33,7 +33,7 @@ const buildItemRows = (items, itemType, checkType) => {
       const quantity = Number(item.quantity) || 0;
       const unitPrice = Number(item.price) || 0;
       const lineTotal = unitPrice * quantity;
-      const line = `[${escapeHtml(resolveItemType(item, checkType) || checkType)}] ${escapeHtml(item.name)} x${escapeHtml(quantity)}`;
+      const line = `${escapeHtml(item.name)} x${escapeHtml(quantity)}`;
       return `<div class="row"><span class="name">${line}</span><span class="price">${escapeHtml(formatNumber(lineTotal))} so'm</span></div>`;
     })
     .join("");
@@ -52,6 +52,10 @@ const buildCheckPrintHtml = (check, options = {}) => {
   const serviceSection =
     serviceRows.length > 0
       ? `<div class="section-title">Xizmatlar</div><div class="divider"></div>${serviceRows}<div class="divider"></div>`
+      : "";
+  const nurseLine =
+    String(check?.createdBy?.role || "").toLowerCase() === "nurse"
+      ? `<div class="nurse-line">Hamshira: ${escapeHtml(check?.createdBy?.name || "-")}</div>`
       : "";
 
   return `<!doctype html>
@@ -81,10 +85,11 @@ const buildCheckPrintHtml = (check, options = {}) => {
       .inner { width: 48mm; margin: 0 auto; padding: 6px 0; }
       .check-title {
         text-align: center;
-        font-size: 23px;
-        font-weight: 900;
-        letter-spacing: 0.5px;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0;
         text-transform: uppercase;
+        white-space: nowrap;
       }
       .divider {
         border-top: 2px dashed #000;
@@ -92,74 +97,49 @@ const buildCheckPrintHtml = (check, options = {}) => {
       }
       .text {
         text-align: center;
-        font-size: 16px;
+        font-size: 15px;
         margin: 2px 0;
       }
       .section-title {
         text-align: center;
-        font-size: 18px;
+        font-size: 16px;
         font-weight: 800;
       }
       .row {
         display: flex;
         justify-content: space-between;
+        align-items: flex-start;
         gap: 6px;
-        font-size: 16px;
+        font-size: 15px;
         margin: 2px 0;
       }
       .name {
-        max-width: 38mm;
+        flex: 1;
+        min-width: 0;
         word-break: break-word;
         text-align: left;
       }
       .price {
         white-space: nowrap;
-        font-weight: 600;
+        font-weight: 700;
       }
       .jami {
         display: flex;
         justify-content: space-between;
-        font-size: 16px;
+        font-size: 17px;
         font-weight: 800;
       }
-      .meta {
-        font-size: 14px;
-        line-height: 1.35;
-      }
+      .nurse-line { margin-top: 8px; text-align: center; font-size: 14px; font-weight: 700; }
       .footer {
-        margin-top: 10px;
+        margin-top: 8px;
         text-align: center;
-        font-size: 15px;
-      }
-
-      .help {
-        margin-bottom: 6px;
-        padding: 2px;
-        border: 1px dashed #555;
-        text-align: center;
-        font-size: 11px;
-      }
-      .print-btn {
-        margin-top: 6px;
-        width: 100%;
-        border: 1px solid #111;
-        background: #fff;
-        padding: 6px 8px;
-        font-size: 12px;
-        cursor: pointer;
-      }
-
-      @media print {
-        .help, .print-btn {
-          display: none;
-        }
+        font-size: 14px;
       }
     </style>
   </head>
   <body>
     <div class="ticket">
       <div class="inner">
-        <div class="help">Chop etish uchun Enter bosing</div>
         <div class="check-title">SAMPI MEDLINE</div>
 
         <div class="divider"></div>
@@ -177,14 +157,8 @@ const buildCheckPrintHtml = (check, options = {}) => {
         </div>
         <div class="divider"></div>
 
-        <div class="meta">
-          <div>Chek: ${escapeHtml(check.checkId)}</div>
-          <div>Xodim: ${escapeHtml(check.createdBy?.name || "-")}</div>
-          <div>Rol: ${escapeHtml(check.createdBy?.role || "-")}</div>
-        </div>
-
         <div class="footer">Doimo sog'-salomat bo'ling</div>
-        <button id="printBtn" class="print-btn">Chop etish (Enter)</button>
+        ${nurseLine}
       </div>
     </div>
     ${
@@ -200,7 +174,14 @@ const buildCheckPrintHtml = (check, options = {}) => {
       }
 
       window.onload = function () {
-        window.focus();
+        const startPrint = function () {
+          setTimeout(runPrint, 120);
+        };
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(startPrint).catch(startPrint);
+        } else {
+          startPrint();
+        }
       };
 
       document.addEventListener("keydown", function (event) {
@@ -209,11 +190,6 @@ const buildCheckPrintHtml = (check, options = {}) => {
           runPrint();
         }
       });
-
-      const printBtn = document.getElementById("printBtn");
-      if (printBtn) {
-        printBtn.addEventListener("click", runPrint);
-      }
 
       window.onafterprint = function () {
         if (window.opener && !window.opener.closed) {

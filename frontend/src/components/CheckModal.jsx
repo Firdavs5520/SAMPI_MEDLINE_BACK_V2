@@ -1,7 +1,6 @@
 import Button from "./Button.jsx";
 import Modal from "./Modal.jsx";
 import { formatCurrency, formatDateTime } from "../utils/format.js";
-import { roleLabels } from "../utils/constants.js";
 
 const escapeHtml = (value) =>
   String(value ?? "")
@@ -15,20 +14,11 @@ const getItemType = (item, checkType) => String(item?.itemType || checkType || "
 const getItemsByType = (check, type) =>
   (check?.items || []).filter((item) => getItemType(item, check.type) === type);
 const getLineTotal = (item) => (Number(item?.price) || 0) * (Number(item?.quantity) || 0);
-const ITEM_TYPE_LABELS = {
-  medicine: "dori",
-  service: "xizmat",
-  mixed: "aralash"
-};
-const getItemTypeLabel = (item, checkType) => {
-  const type = getItemType(item, checkType);
-  return ITEM_TYPE_LABELS[type] || type || "element";
-};
 
 const buildRowsHtml = (items, checkType) =>
   items
     .map((item) => {
-      const line = `[${escapeHtml(getItemTypeLabel(item, checkType))}] ${escapeHtml(item.name)} x${escapeHtml(item.quantity)}`;
+      const line = `${escapeHtml(item.name)} x${escapeHtml(item.quantity)}`;
       const amount = escapeHtml(formatCurrency(getLineTotal(item)));
       return `<div class="row"><span class="name">${line}</span><span class="price">${amount}</span></div>`;
     })
@@ -161,13 +151,12 @@ const buildPrintHtml = (check) => {
         </div>
         <div class="divider"></div>
 
-        <div class="meta">
-          <div>Chek: ${escapeHtml(check.checkId)}</div>
-          <div>Xodim: ${escapeHtml(check.createdBy?.name || "-")}</div>
-          <div>Rol: ${escapeHtml(roleLabels[check.createdBy?.role] || check.createdBy?.role || "-")}</div>
-        </div>
-
         <div class="footer">Doimo sog'-salomat bo'ling</div>
+        ${
+          String(check?.createdBy?.role || "").toLowerCase() === "nurse"
+            ? `<div class="meta"><div>Hamshira: ${escapeHtml(check.createdBy?.name || "-")}</div></div>`
+            : ""
+        }
         <button id="printBtn" class="print-btn">Chop etish (Enter tugmasi)</button>
       </div>
     </div>
@@ -268,7 +257,7 @@ function CheckModal({ open, check, onClose }) {
                     className="flex items-start justify-between gap-2 text-base"
                   >
                     <span className="max-w-[75%] break-words text-slate-700">
-                      [{getItemTypeLabel(item, check.type)}] {item.name} x{item.quantity}
+                      {item.name} x{item.quantity}
                     </span>
                     <span className="font-semibold text-slate-900">
                       {formatCurrency(getLineTotal(item))}
@@ -291,7 +280,7 @@ function CheckModal({ open, check, onClose }) {
                     className="flex items-start justify-between gap-2 text-base"
                   >
                     <span className="max-w-[75%] break-words text-slate-700">
-                      [{getItemTypeLabel(item, check.type)}] {item.name} x{item.quantity}
+                      {item.name} x{item.quantity}
                     </span>
                     <span className="font-semibold text-slate-900">
                       {formatCurrency(getLineTotal(item))}
@@ -310,15 +299,14 @@ function CheckModal({ open, check, onClose }) {
             </div>
           </div>
 
-          <div className="mt-3 space-y-1 text-sm text-slate-700">
-            <p>Chek ID: {check.checkId}</p>
-            <p>Xodim: {check.createdBy?.name || "-"}</p>
-            <p>Rol: {roleLabels[check.createdBy?.role] || check.createdBy?.role || "-"}</p>
-          </div>
-
           <p className="mt-4 text-center text-base text-slate-700">
             Doimo sog'-salomat bo'ling
           </p>
+          {String(check?.createdBy?.role || "").toLowerCase() === "nurse" ? (
+            <p className="mt-1 text-center text-sm font-semibold text-slate-700">
+              Hamshira: {check.createdBy?.name || "-"}
+            </p>
+          ) : null}
         </div>
       </div>
     </Modal>
