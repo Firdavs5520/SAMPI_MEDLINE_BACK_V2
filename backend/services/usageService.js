@@ -475,6 +475,51 @@ const createRoleSpecialist = async ({ name, user }) => {
   }
 };
 
+const getRoleSpecialistById = async ({ specialistId, user }) => {
+  const type = assertSpecialistRole(user);
+  assertObjectId(specialistId, "Mutaxassis ID");
+
+  const specialist = await CashierSpecialist.findById(specialistId);
+  if (!specialist) {
+    throw new AppError("Mutaxassis topilmadi", 404);
+  }
+
+  if (specialist.type !== type) {
+    throw new AppError("Bu mutaxassisni boshqarishga ruxsat yo'q", 403);
+  }
+
+  return specialist;
+};
+
+const updateRoleSpecialist = async ({ specialistId, name, user }) => {
+  const specialist = await getRoleSpecialistById({ specialistId, user });
+  const safeName = normalizeSpecialistName(
+    name,
+    specialist.type === "nurse" ? "Hamshira" : "Doktor"
+  );
+
+  specialist.name = safeName;
+
+  try {
+    await specialist.save();
+    return specialist;
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new AppError("Bu nom allaqachon mavjud", 400);
+    }
+    throw error;
+  }
+};
+
+const deleteRoleSpecialist = async ({ specialistId, user }) => {
+  const specialist = await getRoleSpecialistById({ specialistId, user });
+  await CashierSpecialist.deleteOne({ _id: specialist._id });
+  return {
+    deleted: true,
+    id: specialistId
+  };
+};
+
 const createNurseCheckout = async ({
   medicines = [],
   services = [],
@@ -799,5 +844,7 @@ module.exports = {
   createLorCheckout,
   getMyChecks,
   getRoleSpecialists,
-  createRoleSpecialist
+  createRoleSpecialist,
+  updateRoleSpecialist,
+  deleteRoleSpecialist
 };

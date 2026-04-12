@@ -10,6 +10,7 @@ import LorSelectPage from "./pages/LorSelectPage.jsx";
 import LorChecksPage from "./pages/LorChecksPage.jsx";
 import LorServicesPage from "./pages/LorServicesPage.jsx";
 import LorServiceCreatePage from "./pages/LorServiceCreatePage.jsx";
+import RoleSpecialistsPage from "./pages/RoleSpecialistsPage.jsx";
 import DeliveryDashboard from "./pages/DeliveryDashboard.jsx";
 import CashierDashboard from "./pages/CashierDashboard.jsx";
 import ManagerDashboard from "./pages/ManagerDashboard.jsx";
@@ -40,6 +41,10 @@ function App() {
       <Route element={<ProtectedRoute allowedRoles={["nurse"]} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/nurse" element={<NurseDashboard />} />
+          <Route
+            path="/nurse/specialists"
+            element={<RoleSpecialistsPage mode="nurse" />}
+          />
           <Route path="/nurse/medicines" element={<NurseMedicinesPage />} />
           <Route path="/nurse/services" element={<NurseServicesPage />} />
         </Route>
@@ -61,6 +66,10 @@ function App() {
           <Route element={<RequireLorIdentity />}>
             <Route path="/lor/checks" element={<LorChecksPage />} />
             <Route path="/lor/services" element={<LorServicesPage />} />
+            <Route
+              path="/lor/specialists"
+              element={<RoleSpecialistsPage mode="lor" />}
+            />
             <Route path="/lor/services/add" element={<LorServiceCreatePage />} />
           </Route>
         </Route>

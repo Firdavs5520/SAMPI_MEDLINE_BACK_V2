@@ -36,6 +36,16 @@ const usageService = {
     return data.data;
   },
 
+  async updateRoleSpecialist(id, payload) {
+    const { data } = await api.patch(`/usage/specialists/${id}`, payload);
+    return data.data;
+  },
+
+  async deleteRoleSpecialist(id) {
+    const { data } = await api.delete(`/usage/specialists/${id}`);
+    return data.data;
+  },
+
   async getMyChecks(search = "", lorIdentity = "") {
     const params = new URLSearchParams();
     if (search?.trim()) {

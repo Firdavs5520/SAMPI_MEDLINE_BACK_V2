@@ -23,12 +23,14 @@ export const roleLabels = {
 export const sidebarMenus = {
   nurse: [
     { label: "Dorilar va xizmatlar tanlash", path: "/nurse", end: true, icon: "grid" },
+    { label: "Hamshiralarni boshqarish", path: "/nurse/specialists", end: true, icon: "users" },
     { label: "Dori qo'shish", path: "/nurse/medicines", icon: "pill" },
     { label: "Xizmat qo'shish", path: "/nurse/services", icon: "stethoscope" }
   ],
   lor: [
     { label: "Mening cheklarim", path: "/lor/checks", end: true, icon: "receipt" },
     { label: "Xizmatdan foydalanish", path: "/lor/services", end: true, icon: "stethoscope" },
+    { label: "Doktorlarni boshqarish", path: "/lor/specialists", end: true, icon: "users" },
     { label: "Xizmat qo'shish", path: "/lor/services/add", end: true, icon: "plus" }
   ],
   delivery: [{ label: "Yetkazuvchi paneli", path: "/delivery", end: true, icon: "truck" }],

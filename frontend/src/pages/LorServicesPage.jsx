@@ -39,12 +39,10 @@ function LorServicesPage() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1);
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
-  const [creatingSpecialist, setCreatingSpecialist] = useState(false);
 
   const [services, setServices] = useState([]);
   const [specialists, setSpecialists] = useState([]);
   const [selectedSpecialistId, setSelectedSpecialistId] = useState("");
-  const [newSpecialistName, setNewSpecialistName] = useState("");
   const [specialistSearch, setSpecialistSearch] = useState("");
 
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
@@ -56,15 +54,6 @@ function LorServicesPage() {
   const [error, setError] = useState("");
 
   const previewRef = useRef(null);
-
-  const specialistOptions = useMemo(
-    () =>
-      specialists.map((item) => ({
-        value: item._id,
-        label: item.name
-      })),
-    [specialists]
-  );
 
   const selectedSpecialist = useMemo(
     () => specialists.find((item) => item._id === selectedSpecialistId) || null,
@@ -188,32 +177,6 @@ function LorServicesPage() {
 
     if (!firstName || !lastName) {
       throw new Error("Bemor F.I.O ni to'liq kiriting (ismi va familiyasi).");
-    }
-  };
-
-  const handleCreateSpecialist = async () => {
-    if (creatingSpecialist) return;
-
-    resetMessages();
-    const safeName = toTitleCaseName(newSpecialistName).trim();
-    if (!safeName) {
-      setError("Doktor nomini kiriting.");
-      return;
-    }
-
-    setCreatingSpecialist(true);
-    try {
-      const created = await usageService.createRoleSpecialist({ name: safeName });
-      const next = await usageService.getRoleSpecialists();
-      setSpecialists(next);
-      setSelectedSpecialistId(created?._id || next[0]?._id || "");
-      setNewSpecialistName("");
-      setSpecialistSearch("");
-      setSuccess("Yangi doktor qo'shildi.");
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    } finally {
-      setCreatingSpecialist(false);
     }
   };
 
@@ -375,27 +338,9 @@ function LorServicesPage() {
         <div className="card border-sky-200 p-4 sm:p-5">
           <h2 className="text-lg font-semibold">1-qadam: Doktor tanlash</h2>
           <p className="mb-4 text-sm text-slate-600">
-            Avval chekni qaysi doktor nomidan chiqarishni tanlang yoki yangi doktor qo'shing.
+            Avval chekni qaysi doktor nomidan chiqarishni tanlang. Yangi doktor qo'shish
+            uchun chap menyudan "Doktorlarni boshqarish" ga o'ting.
           </p>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-            <Input
-              label="Yangi doktor"
-              value={newSpecialistName}
-              placeholder="Masalan: Doktor Aziz"
-              onChange={(e) => setNewSpecialistName(toTitleCaseName(e.target.value))}
-            />
-            <div className="md:col-span-2 flex items-end">
-              <Button
-                type="button"
-                loading={creatingSpecialist}
-                className="w-full bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
-                onClick={handleCreateSpecialist}
-              >
-                Doktor qo'shish
-              </Button>
-            </div>
-          </div>
 
           <div className="mt-4">
             <QuickSearchInput
@@ -413,7 +358,7 @@ function LorServicesPage() {
             />
           </div>
 
-          {specialistOptions.length ? (
+          {specialists.length ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {filteredSpecialists.map((item) => {
                 const selected = selectedSpecialistId === item._id;
@@ -425,7 +370,7 @@ function LorServicesPage() {
                     className={`rounded-xl border px-3 py-3 text-left transition ${
                       selected
                         ? "border-primary bg-cyan-50"
-                        : "border-slate-200 bg-white hover:border-primary/50"
+                        : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/50"
                     }`}
                   >
                     <p className="font-semibold text-slate-800">{item.name}</p>
@@ -438,9 +383,10 @@ function LorServicesPage() {
             </div>
           ) : null}
 
-          {!specialistOptions.length ? (
+          {!specialists.length ? (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Hozircha doktor yo'q. Avval yangi doktor qo'shing.
+              Hozircha doktor yo'q. Chap menyudan "Doktorlarni boshqarish" bo'limida
+              yangi doktor qo'shing.
             </div>
           ) : null}
 

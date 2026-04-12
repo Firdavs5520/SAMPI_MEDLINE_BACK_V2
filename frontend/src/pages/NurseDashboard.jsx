@@ -72,12 +72,10 @@ const getServicePrice = (service, tier) => {
 function NurseDashboard() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [creatingSpecialist, setCreatingSpecialist] = useState(false);
   const [step, setStep] = useState(1);
 
   const [specialists, setSpecialists] = useState([]);
   const [selectedSpecialistId, setSelectedSpecialistId] = useState("");
-  const [newSpecialistName, setNewSpecialistName] = useState("");
   const [specialistSearch, setSpecialistSearch] = useState("");
 
   const [medicines, setMedicines] = useState([]);
@@ -94,15 +92,6 @@ function NurseDashboard() {
   const previewRef = useRef(null);
 
   const hasAnySelection = selectedMedicineIds.length > 0 || selectedServiceIds.length > 0;
-
-  const specialistOptions = useMemo(
-    () =>
-      specialists.map((item) => ({
-        value: item._id,
-        label: item.name
-      })),
-    [specialists]
-  );
 
   const selectedSpecialist = useMemo(
     () => specialists.find((item) => item._id === selectedSpecialistId) || null,
@@ -229,32 +218,6 @@ function NurseDashboard() {
     const { firstName, lastName } = splitFullName(patient.fullName);
     if (!firstName.trim() || !lastName.trim()) {
       throw new Error("Bemor F.I.O ni to'liq kiriting (ismi va familiyasi).");
-    }
-  };
-
-  const handleCreateSpecialist = async () => {
-    if (creatingSpecialist) return;
-
-    resetMessages();
-    const safeName = toTitleCaseName(newSpecialistName).trim();
-    if (!safeName) {
-      setError("Hamshira nomini kiriting.");
-      return;
-    }
-
-    setCreatingSpecialist(true);
-    try {
-      const created = await usageService.createRoleSpecialist({ name: safeName });
-      const next = await usageService.getRoleSpecialists();
-      setSpecialists(next);
-      setSelectedSpecialistId(created?._id || next[0]?._id || "");
-      setNewSpecialistName("");
-      setSpecialistSearch("");
-      setSuccess("Yangi hamshira qo'shildi.");
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    } finally {
-      setCreatingSpecialist(false);
     }
   };
 
@@ -393,27 +356,9 @@ function NurseDashboard() {
         <div className="card border-rose-200 p-4 sm:p-5">
           <h2 className="text-lg font-semibold">1-qadam: Hamshira tanlash</h2>
           <p className="mb-4 text-sm text-slate-600">
-            Avval chekni kim yaratishini tanlang yoki yangi hamshira qo'shing.
+            Avval chekni kim yaratishini tanlang. Yangi hamshira qo'shish uchun chap menyudan
+            "Hamshiralarni boshqarish" ga o'ting.
           </p>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_220px_auto]">
-            <Input
-              label="Yangi hamshira"
-              value={newSpecialistName}
-              placeholder="Masalan: Malika"
-              onChange={(e) => setNewSpecialistName(toTitleCaseName(e.target.value))}
-            />
-            <div className="md:col-span-2 flex items-end">
-              <Button
-                type="button"
-                loading={creatingSpecialist}
-                className="w-full bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
-                onClick={handleCreateSpecialist}
-              >
-                Hamshira qo'shish
-              </Button>
-            </div>
-          </div>
 
           <div className="mt-4">
             <QuickSearchInput
@@ -431,7 +376,7 @@ function NurseDashboard() {
             />
           </div>
 
-          {specialistOptions.length ? (
+          {specialists.length ? (
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {filteredSpecialists.map((item) => {
                 const selected = selectedSpecialistId === item._id;
@@ -443,7 +388,7 @@ function NurseDashboard() {
                     className={`rounded-xl border px-3 py-3 text-left transition ${
                       selected
                         ? "border-primary bg-cyan-50"
-                        : "border-slate-200 bg-white hover:border-primary/50"
+                        : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-primary/50"
                     }`}
                   >
                     <p className="font-semibold text-slate-800">{item.name}</p>
@@ -456,9 +401,10 @@ function NurseDashboard() {
             </div>
           ) : null}
 
-          {!specialistOptions.length ? (
+          {!specialists.length ? (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Hozircha hamshira yo'q. Avval yangi hamshira qo'shing.
+              Hozircha hamshira yo'q. Chap menyudan "Hamshiralarni boshqarish" bo'limida
+              yangi hamshira qo'shing.
             </div>
           ) : null}
 

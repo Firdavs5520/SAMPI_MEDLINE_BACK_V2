@@ -54,11 +54,7 @@ function DashboardLayout() {
       ) : null}
 
       <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col">
-        <Navbar
-          onMenuOpen={() => setSidebarOpen(true)}
-          sidebarCompact={sidebarCompact}
-          onToggleSidebarCompact={handleToggleSidebarCompact}
-        />
+        <Navbar onMenuOpen={() => setSidebarOpen(true)} />
         <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
           <Outlet />
         </main>

@@ -142,7 +142,7 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
     : [];
 
   const linkClassName = ({ isActive }) =>
-    `flex items-center rounded-xl px-3 py-2 text-sm font-medium transition ${
+    `flex items-center rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ease-out ${
       compact ? "lg:justify-center lg:px-2" : "gap-2"
     } ${
       isActive ? "bg-primary text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
@@ -150,10 +150,10 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform border-r border-slate-200 bg-white transition lg:static lg:max-w-none lg:translate-x-0 ${compact ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}
+      className={`fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform border-r border-slate-200 bg-white transition lg:static lg:max-w-none lg:translate-x-0 lg:transition-all lg:duration-300 lg:ease-out ${compact ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}
     >
       <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div className={`flex items-center border-b border-slate-200 py-4 ${compact ? "justify-center px-2" : "justify-between px-5"}`}>
           <div className={`flex items-center gap-2 ${compact ? "lg:justify-center lg:w-full" : ""}`}>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-extrabold text-primary">
               SM
@@ -162,44 +162,33 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
               Sampi Medline
             </h2>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="hidden rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 lg:inline-flex"
-              title={compact ? "To'liq menyu" : "Faqat ikonlar"}
-              onClick={onToggleCompact}
-            >
-              <svg
-                className="h-5 w-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {compact ? (
-                  <>
-                    <path d="M3 7h6M3 12h6M3 17h6" />
-                    <path d="M12 6h9v12h-9z" />
-                  </>
-                ) : (
-                  <>
-                    <path d="M3 6h18v12H3z" />
-                    <path d="M8 6v12" />
-                  </>
-                )}
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 lg:hidden"
-              onClick={onClose}
-            >
-              X
-            </button>
-          </div>
+          <button
+            type="button"
+            className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 lg:hidden"
+            onClick={onClose}
+          >
+            X
+          </button>
         </div>
+
+        <button
+          type="button"
+          className="absolute -right-3 top-20 hidden h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:scale-105 hover:bg-slate-50 lg:inline-flex"
+          title={compact ? "To'liq menyu" : "Faqat ikonlar"}
+          onClick={onToggleCompact}
+        >
+          <svg
+            className={`h-4 w-4 transition-transform duration-300 ${compact ? "rotate-180" : ""}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
 
         <nav className={`overflow-y-auto p-4 ${compact ? "space-y-2" : "space-y-3"}`}>
           {hasGroups
