@@ -2,6 +2,22 @@ const mongoose = require("mongoose");
 
 const cashierEntrySchema = new mongoose.Schema(
   {
+    source: {
+      type: String,
+      enum: ["manual", "check"],
+      default: "manual",
+      index: true
+    },
+    checkRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Check",
+      default: null
+    },
+    checkCode: {
+      type: String,
+      trim: true,
+      default: ""
+    },
     department: {
       type: String,
       enum: ["lor", "nurse", "procedure"],
@@ -90,5 +106,6 @@ const cashierEntrySchema = new mongoose.Schema(
 
 cashierEntrySchema.index({ entryDate: 1, department: 1, specialistType: 1, createdAt: 1 });
 cashierEntrySchema.index({ patientName: "text", specialistName: "text", patientPhone: "text" });
+cashierEntrySchema.index({ checkRef: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("CashierEntry", cashierEntrySchema);

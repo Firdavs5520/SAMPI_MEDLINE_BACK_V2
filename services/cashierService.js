@@ -1,5 +1,6 @@
 const CashierEntry = require("../models/CashierEntry");
 const CashierSpecialist = require("../models/CashierSpecialist");
+const Check = require("../models/Check");
 const AppError = require("../utils/AppError");
 
 const DEPARTMENTS = ["lor", "nurse", "procedure"];
@@ -11,6 +12,9 @@ const SHIFT_START_HOUR = 8;
 const SHIFT_END_HOUR = 2;
 const SHIFT_LABEL_FROM = "08:00";
 const SHIFT_LABEL_TO = "02:00";
+const CHECK_CREATOR_ROLES = ["nurse", "lor"];
+const isValidObjectId = (value) =>
+  typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
 
 const toTashkentDateString = (date = new Date()) =>
   new Date(date.getTime() + TASHKENT_UTC_OFFSET_HOURS * 60 * 60 * 1000)
@@ -143,6 +147,26 @@ const normalizeTimeScope = (value) => {
 
   if (!TIME_SCOPES.includes(safe)) {
     throw new AppError("timeScope all, active yoki history bo'lishi kerak", 400);
+  }
+
+  return safe;
+};
+
+const normalizeCheckCreatorRole = (value, { allowAll = true } = {}) => {
+  const safe = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  if (!safe) {
+    return allowAll ? "all" : null;
+  }
+
+  if (allowAll && safe === "all") {
+    return "all";
+  }
+
+  if (!CHECK_CREATOR_ROLES.includes(safe)) {
+    throw new AppError("Chek roli nurse yoki lor bo'lishi kerak", 400);
   }
 
   return safe;
@@ -305,6 +329,146 @@ const resolveSpecialistData = async ({ specialistId, specialistName, specialistT
     specialistName: safeSpecialistName,
     specialistType: safeSpecialistType
   };
+};
+
+const normalizeCheckObjectId = (value) => {
+  const safe = String(value || "").trim();
+  if (!isValidObjectId(safe)) {
+    throw new AppError("Chek ID noto'g'ri", 400);
+  }
+  return safe;
+};
+
+const resolvePatientNameFromCheck = (check, { strict = true } = {}) => {
+  const fullName = String(check?.patient?.fullName || "").trim();
+  if (fullName) {
+    return fullName;
+  }
+
+  const firstName = String(check?.patient?.firstName || "").trim();
+  const lastName = String(check?.patient?.lastName || "").trim();
+  const fallback = `${firstName} ${lastName}`.trim();
+  if (!fallback && strict) {
+    throw new AppError("Chekda bemor ma'lumoti topilmadi", 400);
+  }
+
+  return fallback || "-";
+};
+
+const tryResolveSpecialistId = async ({ specialistType, specialistName }) => {
+  const safeType = normalizeSpecialistType(specialistType);
+  const safeName = String(specialistName || "").trim();
+  if (!safeName) return undefined;
+
+  const specialist = await CashierSpecialist.findOne({ type: safeType, name: safeName });
+  return specialist?._id;
+};
+
+const createEntryFromCheck = async ({ payload, user }) => {
+  const checkObjectId = normalizeCheckObjectId(payload.checkRef);
+  const check = await Check.findById(checkObjectId).lean();
+
+  if (!check) {
+    throw new AppError("Chek topilmadi", 404);
+  }
+
+  const creatorRole = String(check?.createdBy?.role || "").trim().toLowerCase();
+  if (!CHECK_CREATOR_ROLES.includes(creatorRole)) {
+    throw new AppError("Faqat nurse yoki lor yaratgan chek kassada qabul qilinadi", 400);
+  }
+
+  const existingEntry = await CashierEntry.findOne({ checkRef: check._id }).lean();
+  if (existingEntry) {
+    throw new AppError("Bu chek allaqachon kassada qabul qilingan", 400);
+  }
+
+  const amount = validateAmount(check.total);
+  const { paidAmount, debtAmount } = resolvePaidAndDebt(amount, payload.paidAmount);
+  const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
+  const patientName = resolvePatientNameFromCheck(check);
+  const specialistName = String(check?.createdBy?.name || "").trim();
+
+  if (!specialistName) {
+    throw new AppError("Chek yaratuvchisi ma'lumoti topilmadi", 400);
+  }
+
+  const specialistId = await tryResolveSpecialistId({
+    specialistType: creatorRole,
+    specialistName
+  });
+
+  return CashierEntry.create({
+    source: "check",
+    checkRef: check._id,
+    checkCode: String(check.checkId || "").trim(),
+    department: creatorRole,
+    patientName,
+    amount,
+    paidAmount,
+    debtAmount,
+    paymentMethod,
+    specialistType: creatorRole,
+    specialistName,
+    ...(specialistId ? { specialistId } : {}),
+    patientPhone: String(payload.patientPhone || "").trim(),
+    note: String(payload.note || "").trim(),
+    entryDate: new Date(),
+    createdBy: {
+      userId: user._id,
+      role: user.role,
+      name: user.name
+    }
+  });
+};
+
+const getPendingChecks = async ({ user, role = "all", search = "" }) => {
+  assertCashierReadPermission(user);
+
+  const safeRole = normalizeCheckCreatorRole(role, { allowAll: true });
+  const safeSearch = String(search || "").trim();
+  const filter = {
+    "createdBy.role": safeRole === "all" ? { $in: CHECK_CREATOR_ROLES } : safeRole
+  };
+
+  if (safeSearch) {
+    const regex = new RegExp(escapeRegex(safeSearch), "i");
+    filter.$or = [
+      { checkId: regex },
+      { "patient.fullName": regex },
+      { "patient.firstName": regex },
+      { "patient.lastName": regex },
+      { "createdBy.name": regex }
+    ];
+  }
+
+  const checks = await Check.find(filter).sort({ createdAt: -1 }).lean();
+  if (!checks.length) {
+    return [];
+  }
+
+  const checkIds = checks.map((item) => item._id);
+  const acceptedRows = await CashierEntry.find({ checkRef: { $in: checkIds } })
+    .select("checkRef")
+    .lean();
+  const acceptedSet = new Set(
+    acceptedRows
+      .map((row) => String(row?.checkRef || ""))
+      .filter(Boolean)
+  );
+
+  return checks
+    .filter((check) => !acceptedSet.has(String(check._id)))
+    .map((check) => ({
+      _id: check._id,
+      checkId: check.checkId,
+      creatorRole: check.createdBy?.role || "",
+      creatorName: check.createdBy?.name || "-",
+      lorIdentity: check.createdBy?.lorIdentity || "",
+      patientName: resolvePatientNameFromCheck(check, { strict: false }),
+      total: Number(check.total || 0),
+      createdAt: check.createdAt,
+      itemsCount: Array.isArray(check.items) ? check.items.length : 0
+    }));
 };
 
 const getEntries = async ({
@@ -562,6 +726,10 @@ const deleteSpecialist = async ({ specialistId, user }) => {
 const createEntry = async ({ payload, user }) => {
   assertCashierWritePermission(user);
 
+  if (payload?.checkRef) {
+    return createEntryFromCheck({ payload, user });
+  }
+
   const patientName = String(payload.patientName || "").trim();
   if (!patientName) {
     throw new AppError("Bemor F.I.O majburiy", 400);
@@ -580,6 +748,7 @@ const createEntry = async ({ payload, user }) => {
   const entryDate = new Date();
 
   return CashierEntry.create({
+    source: "manual",
     department,
     patientName,
     amount,
@@ -690,6 +859,7 @@ const deleteEntry = async ({ entryId, user }) => {
 module.exports = {
   getEntries,
   getSummary,
+  getPendingChecks,
   getSpecialists,
   createSpecialist,
   deleteSpecialist,

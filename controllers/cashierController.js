@@ -31,6 +31,16 @@ const getSummary = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data });
 });
 
+const getPendingChecks = asyncHandler(async (req, res) => {
+  const data = await cashierService.getPendingChecks({
+    user: req.user,
+    role: req.query.role,
+    search: req.query.search
+  });
+
+  res.status(200).json({ success: true, data });
+});
+
 const createEntry = asyncHandler(async (req, res) => {
   const entry = await cashierService.createEntry({
     payload: req.body,
@@ -90,6 +100,7 @@ const deleteSpecialist = asyncHandler(async (req, res) => {
 module.exports = {
   getEntries,
   getSummary,
+  getPendingChecks,
   getSpecialists,
   createSpecialist,
   deleteSpecialist,

@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const Medicine = require("../models/Medicine");
 const Service = require("../models/Service");
 const Check = require("../models/Check");
+const CashierEntry = require("../models/CashierEntry");
 const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const CashierSpecialist = require("../models/CashierSpecialist");
@@ -438,7 +439,47 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
     ];
   }
 
-  return Check.find(filter).sort({ createdAt: -1 });
+  const checks = await Check.find(filter).sort({ createdAt: -1 }).lean();
+  if (!checks.length) {
+    return [];
+  }
+
+  const checkIds = checks.map((check) => check._id);
+  const cashierEntries = await CashierEntry.find({
+    checkRef: { $in: checkIds }
+  })
+    .select("checkRef amount paidAmount debtAmount paymentMethod entryDate createdAt")
+    .lean();
+
+  const cashierByCheckId = new Map(
+    cashierEntries
+      .filter((row) => row?.checkRef)
+      .map((row) => [String(row.checkRef), row])
+  );
+
+  return checks.map((check) => {
+    const cashierEntry = cashierByCheckId.get(String(check._id));
+    return {
+      ...check,
+      cashierStatus: cashierEntry
+        ? {
+            accepted: true,
+            amount: Number(cashierEntry.amount || check.total || 0),
+            paidAmount: Number(cashierEntry.paidAmount || 0),
+            debtAmount: Number(cashierEntry.debtAmount || 0),
+            paymentMethod: cashierEntry.paymentMethod || "cash",
+            acceptedAt: cashierEntry.entryDate || cashierEntry.createdAt
+          }
+        : {
+            accepted: false,
+            amount: Number(check.total || 0),
+            paidAmount: 0,
+            debtAmount: Number(check.total || 0),
+            paymentMethod: null,
+            acceptedAt: null
+          }
+    };
+  });
 };
 
 const getRoleSpecialists = async ({ user, search = "" }) => {

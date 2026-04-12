@@ -159,6 +159,41 @@ const aggregateMedicineTypesFromChecks = async (match) => {
   return result?.count || 0;
 };
 
+const aggregateLorIdentityStats = async (periodMatch) => {
+  const groupedRows = await Check.aggregate([
+    {
+      $match: {
+        ...periodMatch,
+        "createdBy.role": "lor"
+      }
+    },
+    {
+      $group: {
+        _id: "$createdBy.lorIdentity",
+        totalRevenue: { $sum: "$total" },
+        checksCount: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const stats = {
+    lor1: { totalRevenue: 0, checksCount: 0 },
+    lor2: { totalRevenue: 0, checksCount: 0 }
+  };
+
+  for (const item of groupedRows) {
+    const key = String(item?._id || "").toLowerCase();
+    if (key === "lor1" || key === "lor2") {
+      stats[key] = {
+        totalRevenue: Number(item.totalRevenue || 0),
+        checksCount: Number(item.checksCount || 0)
+      };
+    }
+  }
+
+  return stats;
+};
+
 const buildRoleOverview = async (periodMatch, role) => {
   const match = mergeMatch(periodMatch, role);
 
@@ -179,11 +214,12 @@ const getManagerOverview = async ({ period = "all" } = {}) => {
   const safePeriod = String(period || "all").toLowerCase();
   const periodMatch = resolveRevenueMatch(safePeriod);
 
-  const [inventoryMedicineTypes, nurse, lor, total] = await Promise.all([
+  const [inventoryMedicineTypes, nurse, lor, total, lorIdentities] = await Promise.all([
     Medicine.countDocuments({ isArchived: { $ne: true } }),
     buildRoleOverview(periodMatch, "nurse"),
     buildRoleOverview(periodMatch, "lor"),
-    buildRoleOverview(periodMatch, null)
+    buildRoleOverview(periodMatch, null),
+    aggregateLorIdentityStats(periodMatch)
   ]);
 
   return {
@@ -193,7 +229,8 @@ const getManagerOverview = async ({ period = "all" } = {}) => {
       nurse,
       lor
     },
-    total
+    total,
+    lorIdentities
   };
 };
 

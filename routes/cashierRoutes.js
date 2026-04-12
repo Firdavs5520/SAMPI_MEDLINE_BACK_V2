@@ -9,6 +9,7 @@ router.use(protect, allowRoles("cashier", "manager"));
 
 router.get("/entries", cashierController.getEntries);
 router.get("/summary", cashierController.getSummary);
+router.get("/pending-checks", cashierController.getPendingChecks);
 router.get("/specialists", cashierController.getSpecialists);
 router.post("/specialists", allowRoles("cashier"), cashierController.createSpecialist);
 router.post("/entries", allowRoles("cashier"), cashierController.createEntry);
