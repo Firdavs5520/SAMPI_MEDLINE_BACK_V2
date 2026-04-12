@@ -296,6 +296,11 @@ function LorServicesPage() {
     }
   };
 
+  const goNextFromServices = () => {
+    resetMessages();
+    setStep(4);
+  };
+
   if (loading) {
     return <Spinner text="LOR xizmatlari yuklanmoqda..." />;
   }
@@ -335,7 +340,15 @@ function LorServicesPage() {
       </div>
 
       {step === 1 ? (
-        <div className="card border-sky-200 p-4 sm:p-5">
+        <div
+          className="card border-sky-200 p-4 sm:p-5"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              goNextFromSpecialist();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">1-qadam: Doktor tanlash</h2>
           <p className="mb-4 text-sm text-slate-600">
             Avval chekni qaysi doktor nomidan chiqarishni tanlang. Yangi doktor qo'shish
@@ -402,7 +415,15 @@ function LorServicesPage() {
       ) : null}
 
       {step === 2 ? (
-        <div className="card border-sky-200 p-4 sm:p-5">
+        <div
+          className="card border-sky-200 p-4 sm:p-5"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              goNextFromPatient();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">2-qadam: Bemor F.I.O</h2>
           <Input
             label="Bemor F.I.O"
@@ -426,7 +447,15 @@ function LorServicesPage() {
       ) : null}
 
       {step === 3 ? (
-        <div className="card border-sky-200 p-4 sm:p-5">
+        <div
+          className="card border-sky-200 p-4 sm:p-5"
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              goNextFromServices();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">3-qadam: Xizmat tanlash</h2>
           <QuickSearchInput
             label="Xizmat qidirish"
@@ -518,7 +547,7 @@ function LorServicesPage() {
             </Button>
             <Button
               className="bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
-              onClick={() => setStep(4)}
+              onClick={goNextFromServices}
             >
               Keyingi: Preview
             </Button>

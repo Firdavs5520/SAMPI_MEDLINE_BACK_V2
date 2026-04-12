@@ -262,6 +262,16 @@ function NurseDashboard() {
     }
   };
 
+  const goNextFromMedicines = () => {
+    resetMessages();
+    setStep(4);
+  };
+
+  const goNextFromServices = () => {
+    resetMessages();
+    setStep(5);
+  };
+
   const handleCheckout = async () => {
     if (submitting) return;
     resetMessages();
@@ -353,7 +363,15 @@ function NurseDashboard() {
       </div>
 
       {step === 1 ? (
-        <div className="card border-rose-200 p-4 sm:p-5">
+        <div
+          className="card border-rose-200 p-4 sm:p-5"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              goNextFromSpecialist();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">1-qadam: Hamshira tanlash</h2>
           <p className="mb-4 text-sm text-slate-600">
             Avval chekni kim yaratishini tanlang. Yangi hamshira qo'shish uchun chap menyudan
@@ -420,7 +438,15 @@ function NurseDashboard() {
       ) : null}
 
       {step === 2 ? (
-        <div className="card border-rose-200 p-4 sm:p-5">
+        <div
+          className="card border-rose-200 p-4 sm:p-5"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              goNextFromPatient();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">2-qadam: Bemor F.I.O</h2>
           <Input
             label="Bemor F.I.O"
@@ -443,7 +469,15 @@ function NurseDashboard() {
       ) : null}
 
       {step === 3 ? (
-        <div className="card border-rose-200 p-4 sm:p-5">
+        <div
+          className="card border-rose-200 p-4 sm:p-5"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              goNextFromMedicines();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">3-qadam: Dorilar</h2>
           <QuickSearchInput
             label="Dori qidirish"
@@ -529,7 +563,7 @@ function NurseDashboard() {
               </Button>
               <Button
                 className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
-                onClick={() => setStep(4)}
+                onClick={goNextFromMedicines}
               >
                 Keyingi
               </Button>
@@ -539,7 +573,15 @@ function NurseDashboard() {
       ) : null}
 
       {step === 4 ? (
-        <div className="card border-rose-200 p-4 sm:p-5">
+        <div
+          className="card border-rose-200 p-4 sm:p-5"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              goNextFromServices();
+            }
+          }}
+        >
           <h2 className="text-lg font-semibold">4-qadam: Xizmatlar</h2>
           <QuickSearchInput
             label="Xizmat qidirish"
@@ -645,7 +687,7 @@ function NurseDashboard() {
               </Button>
               <Button
                 className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
-                onClick={() => setStep(5)}
+                onClick={goNextFromServices}
               >
                 Keyingi
               </Button>
