@@ -271,6 +271,21 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     () => buildEffectiveFilters(filters),
     [filters, lockedType, isDebtSection]
   );
+  const availableSpecialistTypeOptions = useMemo(() => {
+    if (lockedType === "lor" || filters.department === "lor") {
+      return specialistTypeOptions.filter(
+        (item) => item.value === "all" || item.value === "lor"
+      );
+    }
+
+    if (lockedType === "nurse" || filters.department === "nurse") {
+      return specialistTypeOptions.filter(
+        (item) => item.value === "all" || item.value === "nurse"
+      );
+    }
+
+    return specialistTypeOptions;
+  }, [lockedType, filters.department]);
 
   const calculatedDebt = useMemo(() => {
     const amount = safeNumber(form.amount, 0);
@@ -469,6 +484,19 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
       setFilters((prev) => ({ ...prev, debtOnly: true }));
     }
   }, [isDebtSection]);
+
+  useEffect(() => {
+    if (lockedType) return;
+
+    if (filters.department === "lor" && filters.specialistType === "nurse") {
+      setFilters((prev) => ({ ...prev, specialistType: "lor" }));
+      return;
+    }
+
+    if (filters.department === "nurse" && filters.specialistType === "lor") {
+      setFilters((prev) => ({ ...prev, specialistType: "nurse" }));
+    }
+  }, [lockedType, filters.department, filters.specialistType]);
 
   useEffect(() => {
     if (!isSpecialistSection) {
@@ -1188,7 +1216,17 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                   value={filters.department}
                   options={departmentOptions}
                   onChange={(nextValue) =>
-                    setFilters((prev) => ({ ...prev, department: nextValue }))
+                    setFilters((prev) => {
+                      const next = { ...prev, department: nextValue };
+
+                      if (nextValue === "lor" && prev.specialistType === "nurse") {
+                        next.specialistType = "lor";
+                      } else if (nextValue === "nurse" && prev.specialistType === "lor") {
+                        next.specialistType = "nurse";
+                      }
+
+                      return next;
+                    })
                   }
                 />
               ) : null}
@@ -1197,7 +1235,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                 <SelectMenu
                   label="Mutaxassis turi"
                   value={filters.specialistType}
-                  options={specialistTypeOptions}
+                  options={availableSpecialistTypeOptions}
                   onChange={(nextValue) =>
                     setFilters((prev) => ({ ...prev, specialistType: nextValue }))
                   }
