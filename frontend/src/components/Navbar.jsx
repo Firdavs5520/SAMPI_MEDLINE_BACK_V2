@@ -18,7 +18,7 @@ const getDisplayName = (user) => {
   return LEGACY_NAME_MAP[rawName] || rawName;
 };
 
-function Navbar({ onMenuOpen }) {
+function Navbar({ onMenuOpen, sidebarCompact = false, onToggleSidebarCompact }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const displayName = getDisplayName(user);
@@ -44,6 +44,14 @@ function Navbar({ onMenuOpen }) {
             className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-600 lg:hidden"
           >
             Menyu
+          </button>
+          <button
+            type="button"
+            onClick={onToggleSidebarCompact}
+            className="hidden rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 lg:inline-flex"
+            title={sidebarCompact ? "To'liq menyu" : "Faqat ikonlar"}
+          >
+            {sidebarCompact ? "To'liq menyu" : "Faqat ikonlar"}
           </button>
           <button
             type="button"

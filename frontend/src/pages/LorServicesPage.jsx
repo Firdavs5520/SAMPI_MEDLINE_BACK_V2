@@ -7,7 +7,6 @@ import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import BusyOverlay from "../components/BusyOverlay.jsx";
 import QuickSearchInput from "../components/QuickSearchInput.jsx";
-import SelectMenu from "../components/SelectMenu.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import {
   extractErrorMessage,
@@ -46,6 +45,7 @@ function LorServicesPage() {
   const [specialists, setSpecialists] = useState([]);
   const [selectedSpecialistId, setSelectedSpecialistId] = useState("");
   const [newSpecialistName, setNewSpecialistName] = useState("");
+  const [specialistSearch, setSpecialistSearch] = useState("");
 
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
   const [serviceInputs, setServiceInputs] = useState({});
@@ -70,6 +70,12 @@ function LorServicesPage() {
     () => specialists.find((item) => item._id === selectedSpecialistId) || null,
     [specialists, selectedSpecialistId]
   );
+
+  const filteredSpecialists = useMemo(() => {
+    const q = normalizeSearch(specialistSearch);
+    if (!q) return specialists;
+    return specialists.filter((item) => normalizeSearch(item?.name).includes(q));
+  }, [specialists, specialistSearch]);
 
   const sortedServices = useMemo(
     () =>
@@ -202,6 +208,7 @@ function LorServicesPage() {
       setSpecialists(next);
       setSelectedSpecialistId(created?._id || next[0]?._id || "");
       setNewSpecialistName("");
+      setSpecialistSearch("");
       setSuccess("Yangi doktor qo'shildi.");
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -390,14 +397,46 @@ function LorServicesPage() {
             </div>
           </div>
 
-          <div className="mt-4 max-w-xl">
-            <SelectMenu
-              label="Doktor ro'yxati"
-              value={selectedSpecialistId}
-              options={[{ value: "", label: "Ro'yxatdan tanlang" }, ...specialistOptions]}
-              onChange={setSelectedSpecialistId}
+          <div className="mt-4">
+            <QuickSearchInput
+              label="Doktor qidirish"
+              placeholder="Masalan: Aziz"
+              value={specialistSearch}
+              onChange={setSpecialistSearch}
+              items={specialists}
+              getItemLabel={(item) => item?.name || ""}
+              onPick={(item) => {
+                setSelectedSpecialistId(item?._id || "");
+                setSpecialistSearch(item?.name || "");
+              }}
+              emptyText="Mos doktor topilmadi"
             />
           </div>
+
+          {specialistOptions.length ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {filteredSpecialists.map((item) => {
+                const selected = selectedSpecialistId === item._id;
+                return (
+                  <button
+                    key={item._id}
+                    type="button"
+                    onClick={() => setSelectedSpecialistId(item._id)}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${
+                      selected
+                        ? "border-primary bg-cyan-50"
+                        : "border-slate-200 bg-white hover:border-primary/50"
+                    }`}
+                  >
+                    <p className="font-semibold text-slate-800">{item.name}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500">
+                      {selected ? "Tanlangan" : "Tanlash uchun bosing"}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           {!specialistOptions.length ? (
             <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
