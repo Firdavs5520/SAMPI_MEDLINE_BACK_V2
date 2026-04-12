@@ -17,9 +17,20 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem(storageKeys.token));
   const [user, setUser] = useState(parseUser);
   const [lorIdentity, setLorIdentityState] = useState(
-    localStorage.getItem(storageKeys.lorIdentity) || ""
+    sessionStorage.getItem(storageKeys.lorIdentity) ||
+      localStorage.getItem(storageKeys.lorIdentity) ||
+      ""
   );
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const localLorIdentity = localStorage.getItem(storageKeys.lorIdentity);
+    if (localLorIdentity) {
+      sessionStorage.setItem(storageKeys.lorIdentity, localLorIdentity);
+      localStorage.removeItem(storageKeys.lorIdentity);
+      setLorIdentityState(String(localLorIdentity || "").trim().toLowerCase());
+    }
+  }, []);
 
   const login = async (email, password) => {
     setLoading(true);
@@ -31,9 +42,11 @@ export function AuthProvider({ children }) {
       setUser(payload.user);
 
       if (payload.user?.role === "lor") {
+        sessionStorage.removeItem(storageKeys.lorIdentity);
         localStorage.removeItem(storageKeys.lorIdentity);
         setLorIdentityState("");
       } else {
+        sessionStorage.removeItem(storageKeys.lorIdentity);
         localStorage.removeItem(storageKeys.lorIdentity);
         setLorIdentityState("");
       }
@@ -47,12 +60,14 @@ export function AuthProvider({ children }) {
   const setLorIdentity = (value) => {
     const safeValue = String(value || "").trim().toLowerCase();
     if (!safeValue) {
+      sessionStorage.removeItem(storageKeys.lorIdentity);
       localStorage.removeItem(storageKeys.lorIdentity);
       setLorIdentityState("");
       return;
     }
 
-    localStorage.setItem(storageKeys.lorIdentity, safeValue);
+    sessionStorage.setItem(storageKeys.lorIdentity, safeValue);
+    localStorage.removeItem(storageKeys.lorIdentity);
     setLorIdentityState(safeValue);
   };
 
@@ -60,6 +75,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem(storageKeys.token);
     localStorage.removeItem(storageKeys.user);
     localStorage.removeItem(storageKeys.lorIdentity);
+    sessionStorage.removeItem(storageKeys.lorIdentity);
     setToken(null);
     setUser(null);
     setLorIdentityState("");
