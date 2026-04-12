@@ -53,6 +53,9 @@ function LorServicesPage() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
+  const specialistSearchRef = useRef(null);
+  const patientInputRef = useRef(null);
+  const serviceSearchRef = useRef(null);
   const previewRef = useRef(null);
 
   const selectedSpecialist = useMemo(
@@ -153,9 +156,22 @@ function LorServicesPage() {
   }, [user?.id, user?._id]);
 
   useEffect(() => {
-    if (step === 4 && previewRef.current) {
-      previewRef.current.focus();
-    }
+    const focusElement = (element) => {
+      if (!element) return;
+      setTimeout(() => {
+        try {
+          element.focus();
+          if (typeof element.select === "function") element.select();
+        } catch (error) {
+          // no-op
+        }
+      }, 0);
+    };
+
+    if (step === 1) focusElement(specialistSearchRef.current);
+    if (step === 2) focusElement(patientInputRef.current);
+    if (step === 3) focusElement(serviceSearchRef.current);
+    if (step === 4) focusElement(previewRef.current);
   }, [step]);
 
   useEffect(() => {
@@ -361,6 +377,7 @@ function LorServicesPage() {
               placeholder="Masalan: Aziz"
               value={specialistSearch}
               onChange={setSpecialistSearch}
+              inputRef={specialistSearchRef}
               items={specialists}
               getItemLabel={(item) => item?.name || ""}
               onPick={(item) => {
@@ -429,6 +446,7 @@ function LorServicesPage() {
             label="Bemor F.I.O"
             value={patient.fullName}
             placeholder="Masalan: Ali Valiyev"
+            inputRef={patientInputRef}
             onChange={(e) => setPatient({ fullName: toTitleCaseName(e.target.value) })}
           />
 
@@ -462,6 +480,7 @@ function LorServicesPage() {
             placeholder="Masalan: Burun chayish"
             value={serviceSearch}
             onChange={setServiceSearch}
+            inputRef={serviceSearchRef}
             items={sortedServices}
             getItemLabel={(item) => item?.name || ""}
             onPick={(service) => {

@@ -89,6 +89,10 @@ function NurseDashboard() {
   const [serviceSearch, setServiceSearch] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const specialistSearchRef = useRef(null);
+  const patientInputRef = useRef(null);
+  const medicineSearchRef = useRef(null);
+  const serviceSearchRef = useRef(null);
   const previewRef = useRef(null);
 
   const hasAnySelection = selectedMedicineIds.length > 0 || selectedServiceIds.length > 0;
@@ -193,7 +197,23 @@ function NurseDashboard() {
   }, []);
 
   useEffect(() => {
-    if (step === 5 && previewRef.current) previewRef.current.focus();
+    const focusElement = (element) => {
+      if (!element) return;
+      setTimeout(() => {
+        try {
+          element.focus();
+          if (typeof element.select === "function") element.select();
+        } catch (error) {
+          // no-op
+        }
+      }, 0);
+    };
+
+    if (step === 1) focusElement(specialistSearchRef.current);
+    if (step === 2) focusElement(patientInputRef.current);
+    if (step === 3) focusElement(medicineSearchRef.current);
+    if (step === 4) focusElement(serviceSearchRef.current);
+    if (step === 5) focusElement(previewRef.current);
   }, [step]);
 
   useEffect(() => {
@@ -384,6 +404,7 @@ function NurseDashboard() {
               placeholder="Masalan: Malika"
               value={specialistSearch}
               onChange={setSpecialistSearch}
+              inputRef={specialistSearchRef}
               items={specialists}
               getItemLabel={(item) => item?.name || ""}
               onPick={(item) => {
@@ -452,6 +473,7 @@ function NurseDashboard() {
             label="Bemor F.I.O"
             value={patient.fullName}
             placeholder="Masalan: Ali Valiyev"
+            inputRef={patientInputRef}
             onChange={(e) => setPatient({ fullName: toTitleCaseName(e.target.value) })}
           />
           <div className="mt-4 flex justify-between">
@@ -484,6 +506,7 @@ function NurseDashboard() {
             placeholder="Masalan: Paracetamol"
             value={medicineSearch}
             onChange={setMedicineSearch}
+            inputRef={medicineSearchRef}
             items={medicines}
             getItemLabel={(item) => item?.name || ""}
             onPick={(item) => setMedicineSearch(item?.name || "")}
@@ -588,6 +611,7 @@ function NurseDashboard() {
             placeholder="Masalan: Ukol qilish"
             value={serviceSearch}
             onChange={setServiceSearch}
+            inputRef={serviceSearchRef}
             items={services}
             getItemLabel={(item) => item?.name || ""}
             onPick={(item) => setServiceSearch(item?.name || "")}

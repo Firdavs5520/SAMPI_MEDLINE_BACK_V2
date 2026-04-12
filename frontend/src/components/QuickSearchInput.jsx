@@ -10,6 +10,7 @@ function QuickSearchInput({
   placeholder = "Qidirish...",
   value,
   onChange,
+  inputRef = null,
   items = [],
   getItemLabel = (item) => item?.name || "",
   onPick,
@@ -42,6 +43,7 @@ function QuickSearchInput({
       <label className="block">
         <span className="mb-1.5 block text-sm font-medium text-slate-600">{label}</span>
         <input
+          ref={inputRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onFocus={() => setOpen(true)}
