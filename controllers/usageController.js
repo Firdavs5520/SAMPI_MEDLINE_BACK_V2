@@ -124,6 +124,31 @@ const createRoleSpecialist = asyncHandler(async (req, res) => {
   });
 });
 
+const updateRoleSpecialist = asyncHandler(async (req, res) => {
+  const data = await usageService.updateRoleSpecialist({
+    specialistId: req.params.id,
+    name: req.body.name,
+    user: req.user
+  });
+
+  res.status(200).json({
+    success: true,
+    data
+  });
+});
+
+const deleteRoleSpecialist = asyncHandler(async (req, res) => {
+  const data = await usageService.deleteRoleSpecialist({
+    specialistId: req.params.id,
+    user: req.user
+  });
+
+  res.status(200).json({
+    success: true,
+    data
+  });
+});
+
 module.exports = {
   useMedicine,
   useService,
@@ -131,5 +156,7 @@ module.exports = {
   createLorCheckout,
   getMyChecks,
   getRoleSpecialists,
-  createRoleSpecialist
+  createRoleSpecialist,
+  updateRoleSpecialist,
+  deleteRoleSpecialist
 };

@@ -22,6 +22,16 @@ router.post(
   allowRoles("nurse", "lor"),
   usageController.createRoleSpecialist
 );
+router.patch(
+  "/specialists/:id",
+  allowRoles("nurse", "lor"),
+  usageController.updateRoleSpecialist
+);
+router.delete(
+  "/specialists/:id",
+  allowRoles("nurse", "lor"),
+  usageController.deleteRoleSpecialist
+);
 
 module.exports = router;
     
