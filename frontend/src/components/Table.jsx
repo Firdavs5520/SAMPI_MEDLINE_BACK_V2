@@ -8,7 +8,7 @@ function Table({
 }) {
   return (
     <div className="w-full overflow-x-auto rounded-xl border border-slate-200">
-      <table className={`min-w-[720px] table-auto bg-white text-sm ${tableClassName}`.trim()}>
+      <table className={`w-full min-w-[720px] table-auto bg-white text-sm ${tableClassName}`.trim()}>
         <thead className={`bg-slate-50 text-left text-slate-600 ${headerClassName}`.trim()}>
           <tr>
             {columns.map((col) => (

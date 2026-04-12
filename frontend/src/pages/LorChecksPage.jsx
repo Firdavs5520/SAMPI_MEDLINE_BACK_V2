@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import usageService from "../services/usageService.js";
 import Spinner from "../components/Spinner.jsx";
 import Alert from "../components/Alert.jsx";
 import Table from "../components/Table.jsx";
-import Input from "../components/Input.jsx";
 import Button from "../components/Button.jsx";
+import QuickSearchInput from "../components/QuickSearchInput.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { extractErrorMessage, formatCurrency, formatDateTime } from "../utils/format.js";
 
@@ -21,6 +21,18 @@ function LorChecksPage() {
   const [error, setError] = useState("");
   const [checks, setChecks] = useState([]);
   const [query, setQuery] = useState("");
+  const checkSuggestions = useMemo(() => {
+    const uniq = new Map();
+    checks.forEach((item) => {
+      const name = String(item?.patient?.fullName || "").trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!uniq.has(key)) {
+        uniq.set(key, { id: key, name });
+      }
+    });
+    return Array.from(uniq.values());
+  }, [checks]);
 
   const loadChecks = async (searchValue = "") => {
     const isInitial = loading;
@@ -40,17 +52,14 @@ function LorChecksPage() {
   };
 
   useEffect(() => {
-    loadChecks("");
-  }, [lorIdentity]);
+    const timer = setTimeout(() => {
+      loadChecks(query.trim());
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [query, lorIdentity]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    await loadChecks(query);
-  };
-
-  const clearSearch = async () => {
+  const clearSearch = () => {
     setQuery("");
-    await loadChecks("");
   };
 
   if (loading) {
@@ -68,19 +77,17 @@ function LorChecksPage() {
           Tanlangan LOR: {lorIdentity ? lorIdentity.toUpperCase() : "-"}
         </p>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto]"
-        >
-          <Input
+        <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+          <QuickSearchInput
             label="Bemor ism-familiyasi"
             placeholder="Masalan: Ali Valiyev"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={setQuery}
+            items={checkSuggestions}
+            getItemLabel={(item) => item?.name || ""}
+            onPick={(item) => setQuery(item?.name || "")}
+            emptyText="Mos bemor topilmadi"
           />
-          <Button type="submit" loading={searching} className="h-fit self-end">
-            Qidirish
-          </Button>
           <Button
             type="button"
             variant="secondary"
@@ -90,7 +97,7 @@ function LorChecksPage() {
           >
             Tozalash
           </Button>
-        </form>
+        </div>
       </div>
 
       <Alert type="error" message={error} />

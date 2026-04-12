@@ -6,6 +6,7 @@ import Spinner from "../components/Spinner.jsx";
 import Table from "../components/Table.jsx";
 import SelectMenu from "../components/SelectMenu.jsx";
 import DatePickerField from "../components/DatePickerField.jsx";
+import QuickSearchInput from "../components/QuickSearchInput.jsx";
 import cashierService from "../services/cashierService.js";
 import {
   extractErrorMessage,
@@ -231,6 +232,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const [specialistNameInput, setSpecialistNameInput] = useState("");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const isPendingCheckMode = Boolean(selectedPendingCheck?._id);
 
   const specialistsByType = useMemo(
     () => ({
@@ -270,6 +272,47 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     () => historyEntries.map((entry, index) => ({ ...entry, rowNumber: index + 1 })),
     [historyEntries]
   );
+  const pendingSuggestionItems = useMemo(
+    () =>
+      pendingChecks.map((item) => ({
+        ...item,
+        _searchLabel: `${item.checkId || ""} - ${item.patientName || "-"}`
+      })),
+    [pendingChecks]
+  );
+  const entrySuggestionItems = useMemo(() => {
+    const source = isHistorySection ? historyEntries : entries;
+    const unique = new Map();
+
+    source.forEach((row) => {
+      const patientName = String(row?.patientName || "").trim();
+      const specialistName = String(row?.specialistName || "").trim();
+      const patientPhone = String(row?.patientPhone || "").trim();
+
+      if (patientName) {
+        const key = `patient:${patientName.toLowerCase()}`;
+        if (!unique.has(key)) {
+          unique.set(key, { id: key, label: patientName });
+        }
+      }
+
+      if (specialistName) {
+        const key = `specialist:${specialistName.toLowerCase()}`;
+        if (!unique.has(key)) {
+          unique.set(key, { id: key, label: specialistName });
+        }
+      }
+
+      if (patientPhone) {
+        const key = `phone:${patientPhone.toLowerCase()}`;
+        if (!unique.has(key)) {
+          unique.set(key, { id: key, label: patientPhone });
+        }
+      }
+    });
+
+    return Array.from(unique.values());
+  }, [entries, historyEntries, isHistorySection]);
 
   const resetMessages = () => {
     setSuccess("");
@@ -417,13 +460,38 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
 
   useEffect(() => {
     if (isFormSection) {
-      loadPendingChecks({ searchValue: pendingSearch });
+      loadPendingChecks({ searchValue: "" });
       return;
     }
 
     setPendingChecks([]);
+    setPendingSearch("");
     setSelectedPendingCheck(null);
   }, [isFormSection, lockedType]);
+
+  useEffect(() => {
+    if (!isFormSection || isPendingCheckMode) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      loadPendingChecks({ searchValue: pendingSearch.trim() });
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [isFormSection, isPendingCheckMode, pendingSearch, lockedType]);
+
+  useEffect(() => {
+    if (!isEntriesSection) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setFilters((prev) => ({ ...prev, search: searchInput.trim() }));
+    }, 220);
+
+    return () => clearTimeout(timer);
+  }, [isEntriesSection, searchInput]);
 
   const resetForm = () => {
     setSelectedPendingCheck(null);
@@ -504,16 +572,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     } finally {
       setSavingEntry(false);
     }
-  };
-
-  const handleSearchSubmit = (event) => {
-    event.preventDefault();
-    setFilters((prev) => ({ ...prev, search: searchInput.trim() }));
-  };
-
-  const handlePendingSearchSubmit = async (event) => {
-    event.preventDefault();
-    await loadPendingChecks({ searchValue: pendingSearch.trim() });
   };
 
   const handlePickPendingCheck = (check) => {
@@ -710,7 +768,6 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const sectionWarningText = lockedType
     ? `Diqqat: Siz hozir faqat ${departmentLabels[lockedType]} yozuvlari bilan ishlayapsiz.`
     : "Umumiy jurnal rejimi: barcha bo'limlar ko'rinadi.";
-  const isPendingCheckMode = Boolean(selectedPendingCheck?._id);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -786,17 +843,21 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                   : "mt-3 max-h-[1200px] opacity-100"
               }`}
             >
-              <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handlePendingSearchSubmit}>
-                <input
-                  value={pendingSearch}
-                  onChange={(e) => setPendingSearch(e.target.value)}
+              <div className="mt-2">
+                <QuickSearchInput
+                  label="Chek qidirish"
                   placeholder="Chek ID yoki bemor F.I.O bo'yicha qidirish..."
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  value={pendingSearch}
+                  onChange={setPendingSearch}
+                  items={pendingSuggestionItems}
+                  getItemLabel={(item) => item?._searchLabel || ""}
+                  onPick={(item) => {
+                    setPendingSearch(item?.checkId || item?.patientName || "");
+                    handlePickPendingCheck(item);
+                  }}
+                  emptyText="Mos chek topilmadi"
                 />
-                <Button type="submit" variant="secondary" className="w-full sm:w-auto">
-                  Qidirish
-                </Button>
-              </form>
+              </div>
 
               <div className="mt-3">
                 <Table
@@ -1062,17 +1123,18 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
               </label>
             </div>
 
-            <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={handleSearchSubmit}>
-              <input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+            <div className="mt-3">
+              <QuickSearchInput
+                label="Bemor yoki mutaxassis qidirish"
                 placeholder="Bemor yoki mutaxassis bo'yicha qidirish..."
-                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
+                value={searchInput}
+                onChange={setSearchInput}
+                items={entrySuggestionItems}
+                getItemLabel={(item) => item?.label || ""}
+                onPick={(item) => setSearchInput(item?.label || "")}
+                emptyText="Mos yozuv topilmadi"
               />
-              <Button type="submit" variant="secondary" className="w-full sm:w-auto">
-                Qidirish
-              </Button>
-            </form>
+            </div>
           </div>
 
           {isCurrentEntriesSection ? (
