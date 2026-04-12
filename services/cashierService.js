@@ -726,47 +726,14 @@ const deleteSpecialist = async ({ specialistId, user }) => {
 const createEntry = async ({ payload, user }) => {
   assertCashierWritePermission(user);
 
-  if (payload?.checkRef) {
-    return createEntryFromCheck({ payload, user });
+  if (!payload?.checkRef) {
+    throw new AppError(
+      "Kassir qo'lda yangi yozuv qo'sha olmaydi. Faqat yuborilgan chekni qabul qiling",
+      400
+    );
   }
 
-  const patientName = String(payload.patientName || "").trim();
-  if (!patientName) {
-    throw new AppError("Bemor F.I.O majburiy", 400);
-  }
-
-  const specialistType = normalizeSpecialistType(payload.specialistType || payload.department);
-  const specialistData = await resolveSpecialistData({
-    specialistId: payload.specialistId,
-    specialistName: payload.specialistName,
-    specialistType
-  });
-  const department = normalizeDepartment(payload.department || specialistData.specialistType);
-  const amount = validateAmount(payload.amount);
-  const { paidAmount, debtAmount } = resolvePaidAndDebt(amount, payload.paidAmount);
-  const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-  const entryDate = new Date();
-
-  return CashierEntry.create({
-    source: "manual",
-    department,
-    patientName,
-    amount,
-    paidAmount,
-    debtAmount,
-    paymentMethod,
-    specialistType: specialistData.specialistType,
-    specialistName: specialistData.specialistName,
-    ...(specialistData.specialistId ? { specialistId: specialistData.specialistId } : {}),
-    patientPhone: String(payload.patientPhone || "").trim(),
-    note: String(payload.note || "").trim(),
-    entryDate,
-    createdBy: {
-      userId: user._id,
-      role: user.role,
-      name: user.name
-    }
-  });
+  return createEntryFromCheck({ payload, user });
 };
 
 const updateEntry = async ({ entryId, payload, user }) => {
