@@ -80,90 +80,68 @@ const buildCheckPrintHtml = (check, options = {}) => {
         padding: 0;
         width: 58mm;
         font-family: "Golos Text", sans-serif;
-        font-size: 13px;
+        font-size: 12px;
         color: #000;
         background: #fff;
       }
 
       * {
-        box-sizing: border-box;
         font-family: "Golos Text", sans-serif;
-        color: #000;
       }
 
       .ticket { width: 58mm; margin: 0; padding: 0; }
       .inner { width: 48mm; margin: 0 auto; padding: 6px 0; }
       .check-title {
         text-align: center;
-        width: 100%;
-        font-size: 21px;
-        font-weight: 900;
-        line-height: 1.05;
-        letter-spacing: 0.2px;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0;
         text-transform: uppercase;
         white-space: nowrap;
       }
       .divider {
-        border-top: 1px dashed #000;
-        margin: 5px 0;
+        border-top: 2px dashed #000;
+        margin: 6px 0;
       }
       .text {
         text-align: center;
         font-size: 15px;
-        font-weight: 700;
-        margin: 3px 0;
+        margin: 2px 0;
       }
       .section-title {
         text-align: center;
-        font-size: 17px;
-        font-weight: 900;
-        line-height: 1.05;
-        white-space: nowrap;
+        font-size: 16px;
+        font-weight: 800;
       }
       .row {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        gap: 4px;
-        width: 100%;
+        align-items: flex-start;
+        gap: 6px;
         font-size: 15px;
-        font-weight: 700;
-        line-height: 1.2;
-        margin: 3px 0;
-        white-space: nowrap;
+        margin: 2px 0;
       }
       .name {
-        width: 30mm;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+        word-break: break-word;
         text-align: left;
       }
       .price {
-        width: 16mm;
-        text-align: right;
         white-space: nowrap;
-        font-weight: 900;
+        font-weight: 700;
       }
       .jami {
         display: flex;
         justify-content: space-between;
-        align-items: center;
-        width: 100%;
-        white-space: nowrap;
-        font-size: 19px;
-        font-weight: 900;
-        line-height: 1.05;
-        border-top: 2px solid #000;
-        border-bottom: 2px solid #000;
-        padding: 4px 0;
+        font-size: 17px;
+        font-weight: 800;
       }
-      .nurse-line { margin-top: 7px; text-align: center; font-size: 14px; font-weight: 800; }
+      .nurse-line { margin-top: 8px; text-align: center; font-size: 14px; font-weight: 700; }
       .footer {
-        margin-top: 7px;
+        margin-top: 8px;
         text-align: center;
         font-size: 14px;
-        font-weight: 700;
       }
     </style>
   </head>
