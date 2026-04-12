@@ -7,6 +7,10 @@ const SPECIALIST_TYPES = ["nurse", "lor"];
 const PAYMENT_METHODS = ["cash", "card", "transfer"];
 const TIME_SCOPES = ["all", "active", "history"];
 const TASHKENT_UTC_OFFSET_HOURS = 5;
+const SHIFT_START_HOUR = 8;
+const SHIFT_END_HOUR = 2;
+const SHIFT_LABEL_FROM = "08:00";
+const SHIFT_LABEL_TO = "02:00";
 
 const toTashkentDateString = (date = new Date()) =>
   new Date(date.getTime() + TASHKENT_UTC_OFFSET_HOURS * 60 * 60 * 1000)
@@ -73,8 +77,18 @@ const getDateRange = (dateString) => {
 const getShiftRange = (dateString) => {
   const safeDateString = normalizeDateString(dateString);
   const { year, month, day } = parseDateParts(safeDateString);
-  const start = toUtcDateFromTashkent(year, month, day, 8, 0, 0, 0);
-  const end = toUtcDateFromTashkent(year, month, day, 19, 59, 59, 999);
+  const start = toUtcDateFromTashkent(year, month, day, SHIFT_START_HOUR, 0, 0, 0);
+  const shiftEndsNextDay = SHIFT_END_HOUR <= SHIFT_START_HOUR;
+  const endBoundary = toUtcDateFromTashkent(
+    year,
+    month,
+    shiftEndsNextDay ? day + 1 : day,
+    SHIFT_END_HOUR,
+    0,
+    0,
+    0
+  );
+  const end = new Date(endBoundary.getTime() - 1);
 
   return {
     safeDateString,
@@ -340,8 +354,8 @@ const getEntries = async ({
     shift: {
       start: shiftStart.toISOString(),
       end: shiftEnd.toISOString(),
-      fromLabel: "08:00",
-      toLabel: "20:00"
+      fromLabel: SHIFT_LABEL_FROM,
+      toLabel: SHIFT_LABEL_TO
     },
     entries
   };
@@ -471,8 +485,8 @@ const getSummary = async ({
     shift: {
       start: shiftStart.toISOString(),
       end: shiftEnd.toISOString(),
-      fromLabel: "08:00",
-      toLabel: "20:00"
+      fromLabel: SHIFT_LABEL_FROM,
+      toLabel: SHIFT_LABEL_TO
     },
     totalAmount: Number(overall.totalAmount || 0),
     totalPaidAmount: Number(overall.totalPaidAmount || 0),
