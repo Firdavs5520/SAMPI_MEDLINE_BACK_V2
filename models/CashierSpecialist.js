@@ -21,7 +21,7 @@ const cashierSpecialistSchema = new mongoose.Schema(
       },
       role: {
         type: String,
-        enum: ["cashier", "manager"],
+        enum: ["cashier", "manager", "nurse", "lor"],
         required: true
       },
       name: {

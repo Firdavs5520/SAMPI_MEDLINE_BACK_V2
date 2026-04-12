@@ -65,6 +65,8 @@ const createCheckout = asyncHandler(async (req, res) => {
     medicines,
     services,
     patient: req.body.patient,
+    specialistId: req.body.specialistId,
+    specialistName: req.body.specialistName,
     user: req.user
   });
 
@@ -87,6 +89,8 @@ const createLorCheckout = asyncHandler(async (req, res) => {
     services,
     patient: req.body.patient,
     lorIdentity: req.body.lorIdentity,
+    specialistId: req.body.specialistId,
+    specialistName: req.body.specialistName,
     user: req.user
   });
 
@@ -96,10 +100,36 @@ const createLorCheckout = asyncHandler(async (req, res) => {
   });
 });
 
+const getRoleSpecialists = asyncHandler(async (req, res) => {
+  const data = await usageService.getRoleSpecialists({
+    user: req.user,
+    search: req.query.search
+  });
+
+  res.status(200).json({
+    success: true,
+    data
+  });
+});
+
+const createRoleSpecialist = asyncHandler(async (req, res) => {
+  const data = await usageService.createRoleSpecialist({
+    name: req.body.name,
+    user: req.user
+  });
+
+  res.status(201).json({
+    success: true,
+    data
+  });
+});
+
 module.exports = {
   useMedicine,
   useService,
   createCheckout,
   createLorCheckout,
-  getMyChecks
+  getMyChecks,
+  getRoleSpecialists,
+  createRoleSpecialist
 };

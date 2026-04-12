@@ -5,8 +5,10 @@ const Service = require("../models/Service");
 const Check = require("../models/Check");
 const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
+const CashierSpecialist = require("../models/CashierSpecialist");
 const AppError = require("../utils/AppError");
 const NURSE_PRICE_TIERS = ["first", "second", "third"];
+const ROLE_SPECIALIST_TYPES = ["nurse", "lor"];
 const SERVICE_PRICE_TIER_LABELS = {
   first: "1-marta",
   second: "2-marta",
@@ -139,6 +141,22 @@ const normalizeLorIdentity = (value) => {
   return normalized;
 };
 
+const normalizeSpecialistName = (value, label = "Mutaxassis") => {
+  const name = String(value || "").trim();
+  if (!name) {
+    throw new AppError(`${label} nomi majburiy`, 400);
+  }
+  return name;
+};
+
+const assertSpecialistRole = (user) => {
+  const role = String(user?.role || "").toLowerCase();
+  if (!ROLE_SPECIALIST_TYPES.includes(role)) {
+    throw new AppError("Bu amal faqat hamshira yoki LOR uchun", 403);
+  }
+  return role;
+};
+
 const createUniqueCheckId = async (session) => {
   for (let i = 0; i < 5; i += 1) {
     const checkId = `CHK-${Date.now()}-${crypto
@@ -154,15 +172,18 @@ const createUniqueCheckId = async (session) => {
 };
 
 const buildCreatedByPayload = (user, options = {}) => {
+  const displayName = String(options.displayName || "").trim();
   const payload = {
     userId: user._id,
     role: user.role,
-    name: user.name
+    name: displayName || user.name
   };
 
   if (user.role === "lor" && options.lorIdentity) {
     payload.lorIdentity = options.lorIdentity;
-    payload.name = `${user.name} (${options.lorIdentity.toUpperCase()})`;
+    if (!displayName) {
+      payload.name = `${user.name} (${options.lorIdentity.toUpperCase()})`;
+    }
   }
 
   return payload;
@@ -179,6 +200,36 @@ const assertUniqueIds = (items, key, message) => {
     }
     seen.add(item[key]);
   }
+};
+
+const resolveRoleSpecialistForCheckout = async ({
+  specialistId,
+  specialistName,
+  user,
+  roleLabel
+}) => {
+  const expectedType = assertSpecialistRole(user);
+  const safeSpecialistId = String(specialistId || "").trim();
+
+  if (safeSpecialistId) {
+    assertObjectId(safeSpecialistId, `${roleLabel} ID`);
+    const specialist = await CashierSpecialist.findById(safeSpecialistId);
+    if (!specialist) {
+      throw new AppError(`Tanlangan ${roleLabel.toLowerCase()} topilmadi`, 404);
+    }
+    if (specialist.type !== expectedType) {
+      throw new AppError(`Tanlangan ${roleLabel.toLowerCase()} turi mos emas`, 400);
+    }
+    return {
+      specialistId: specialist._id,
+      specialistName: specialist.name
+    };
+  }
+
+  return {
+    specialistId: undefined,
+    specialistName: normalizeSpecialistName(specialistName, roleLabel)
+  };
 };
 
 const resolveCheckType = (medicineCount, serviceCount) => {
@@ -390,7 +441,48 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
   return Check.find(filter).sort({ createdAt: -1 });
 };
 
-const createNurseCheckout = async ({ medicines = [], services = [], patient, user }) => {
+const getRoleSpecialists = async ({ user, search = "" }) => {
+  const type = assertSpecialistRole(user);
+  const safeSearch = String(search || "").trim();
+  const filter = { type };
+
+  if (safeSearch) {
+    filter.name = { $regex: escapeRegex(safeSearch), $options: "i" };
+  }
+
+  return CashierSpecialist.find(filter).sort({ name: 1, createdAt: -1 });
+};
+
+const createRoleSpecialist = async ({ name, user }) => {
+  const type = assertSpecialistRole(user);
+  const safeName = normalizeSpecialistName(name, type === "nurse" ? "Hamshira" : "Doktor");
+
+  try {
+    return await CashierSpecialist.create({
+      name: safeName,
+      type,
+      createdBy: {
+        userId: user._id,
+        role: user.role,
+        name: user.name
+      }
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new AppError("Bu nom allaqachon mavjud", 400);
+    }
+    throw error;
+  }
+};
+
+const createNurseCheckout = async ({
+  medicines = [],
+  services = [],
+  patient,
+  specialistId,
+  specialistName,
+  user
+}) => {
   if (!user || user.role !== "nurse") {
     throw new AppError("Bu chekni faqat hamshira yaratishi mumkin", 403);
   }
@@ -425,6 +517,12 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
 
   normalizedMedicineItems.forEach((item) => assertObjectId(item.medicineId, "Dori ID"));
   normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
+  const specialist = await resolveRoleSpecialistForCheckout({
+    specialistId,
+    specialistName,
+    user,
+    roleLabel: "Hamshira"
+  });
   const normalizedPatient = normalizePatient(patient);
 
   const session = await mongoose.startSession();
@@ -559,7 +657,9 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
           items: checkItems,
           total: Number(total.toFixed(2)),
           patient: normalizedPatient,
-          createdBy: buildCreatedByPayload(user)
+          createdBy: buildCreatedByPayload(user, {
+            displayName: specialist.specialistName
+          })
         }
       ],
       { session }
@@ -575,7 +675,14 @@ const createNurseCheckout = async ({ medicines = [], services = [], patient, use
   }
 };
 
-const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) => {
+const createLorCheckout = async ({
+  services = [],
+  patient,
+  lorIdentity,
+  specialistId,
+  specialistName,
+  user
+}) => {
   if (!user || user.role !== "lor") {
     throw new AppError("Bu chekni faqat lor yaratishi mumkin", 403);
   }
@@ -598,6 +705,12 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
   }));
 
   normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
+  const specialist = await resolveRoleSpecialistForCheckout({
+    specialistId,
+    specialistName,
+    user,
+    roleLabel: "Doktor"
+  });
   const normalizedPatient = normalizePatient(patient);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
 
@@ -661,7 +774,8 @@ const createLorCheckout = async ({ services = [], patient, lorIdentity, user }) 
           total: Number(total.toFixed(2)),
           patient: normalizedPatient,
           createdBy: buildCreatedByPayload(user, {
-            lorIdentity: normalizedLorIdentity
+            lorIdentity: normalizedLorIdentity,
+            displayName: specialist.specialistName
           })
         }
       ],
@@ -683,5 +797,7 @@ module.exports = {
   useService,
   createNurseCheckout,
   createLorCheckout,
-  getMyChecks
+  getMyChecks,
+  getRoleSpecialists,
+  createRoleSpecialist
 };
