@@ -30,25 +30,25 @@ const SECTION_META = {
   },
   "nurse-entries": {
     title: "Nurse yozuvlari",
-    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida ko'rsatiladi.",
+    subtitle: "Joriy ro'yxat 08:00-02:00 oralig'ida ko'rsatiladi.",
     lockedType: "nurse",
     specialistLabel: "Medsestra"
   },
   "nurse-history": {
     title: "Nurse tarixi",
-    subtitle: "Nurse bo'yicha 08:00-20:00 dan tashqari yozuvlar tarixi.",
+    subtitle: "Nurse bo'yicha 08:00-02:00 dan tashqari yozuvlar tarixi.",
     lockedType: "nurse",
     specialistLabel: "Medsestra"
   },
   "lor-entries": {
     title: "LOR yozuvlari",
-    subtitle: "Joriy ro'yxat 08:00-20:00 oralig'ida ko'rsatiladi.",
+    subtitle: "Joriy ro'yxat 08:00-02:00 oralig'ida ko'rsatiladi.",
     lockedType: "lor",
     specialistLabel: "Vrach"
   },
   "lor-history": {
     title: "LOR tarixi",
-    subtitle: "LOR bo'yicha 08:00-20:00 dan tashqari yozuvlar tarixi.",
+    subtitle: "LOR bo'yicha 08:00-02:00 dan tashqari yozuvlar tarixi.",
     lockedType: "lor",
     specialistLabel: "Vrach"
   },
@@ -212,7 +212,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
   const [historyEntries, setHistoryEntries] = useState([]);
   const [shiftWindow, setShiftWindow] = useState({
     fromLabel: "08:00",
-    toLabel: "20:00"
+    toLabel: "02:00"
   });
   const [summary, setSummary] = useState(emptySummary);
   const [specialists, setSpecialists] = useState([]);
@@ -302,7 +302,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           setShiftWindow(
             historyPayload?.shift || {
               fromLabel: "08:00",
-              toLabel: "20:00"
+              toLabel: "02:00"
             }
           );
           setSummary(summaryPayload || emptySummary);
@@ -317,7 +317,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
           setShiftWindow(
             activePayload?.shift || {
               fromLabel: "08:00",
-              toLabel: "20:00"
+              toLabel: "02:00"
             }
           );
           setSummary(summaryPayload || emptySummary);
@@ -333,7 +333,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
         setShiftWindow(
           entriesPayload?.shift || {
             fromLabel: "08:00",
-            toLabel: "20:00"
+            toLabel: "02:00"
           }
         );
         setSummary(summaryPayload || emptySummary);
