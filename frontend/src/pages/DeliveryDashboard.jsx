@@ -267,7 +267,7 @@ function DeliveryDashboard() {
             <Button
               loading={savingStock}
               onClick={handleBatchRestock}
-              className={sectionTheme.submitButton}
+              className={`w-full sm:w-auto ${sectionTheme.submitButton}`}
             >
               Omborga qo'shish
             </Button>

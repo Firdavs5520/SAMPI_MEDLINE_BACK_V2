@@ -172,7 +172,7 @@ function RoleSpecialistsPage({ mode = "nurse" }) {
             placeholder={`Masalan: ${roleLabel} Aziz`}
             onChange={(e) => setNewName(toTitleCaseName(e.target.value))}
           />
-          <Button type="submit" loading={saving} className={`h-fit self-end ${theme.accent}`}>
+          <Button type="submit" loading={saving} className={`h-fit w-full self-end ${theme.accent} md:w-auto`}>
             Qo'shish
           </Button>
         </form>
@@ -186,7 +186,7 @@ function RoleSpecialistsPage({ mode = "nurse" }) {
             placeholder={`Masalan: ${roleLabel} 1`}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <Button type="button" variant="secondary" className="h-fit" onClick={() => setSearch("")}>
+          <Button type="button" variant="secondary" className="h-fit w-full md:w-auto" onClick={() => setSearch("")}>
             Tozalash
           </Button>
         </div>

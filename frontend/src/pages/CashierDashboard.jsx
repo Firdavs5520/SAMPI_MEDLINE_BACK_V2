@@ -540,7 +540,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     const specialistRoleLabel = specialistPageType === "nurse" ? "Nurse" : "LOR";
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div className="card p-4 sm:p-5">
           <h1 className="text-xl font-bold text-slate-800">{sectionMeta.title}</h1>
           <p className="mt-1 text-sm text-slate-500">{sectionMeta.subtitle}</p>
@@ -555,7 +555,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
               placeholder={`Masalan: ${specialistRoleLabel} 1`}
               className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
             />
-            <Button onClick={handleAddSpecialist} loading={savingSpecialist}>
+            <Button className="w-full sm:w-auto" onClick={handleAddSpecialist} loading={savingSpecialist}>
               Qo'shish
             </Button>
           </div>
@@ -694,7 +694,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     : "Umumiy jurnal rejimi: barcha bo'limlar ko'rinadi.";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className={`card p-4 sm:p-5 ${sectionTheme.headerCard}`}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -836,16 +836,16 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
               />
             </label>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
               <Button
                 type="submit"
                 loading={savingEntry}
-                className={sectionTheme.submitButton}
+                className={`w-full sm:w-auto ${sectionTheme.submitButton}`}
               >
                 {editingEntry ? "Yangilash" : "Qo'shish"}
               </Button>
               {editingEntry ? (
-                <Button type="button" variant="secondary" onClick={resetForm}>
+                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={resetForm}>
                   Bekor qilish
                 </Button>
               ) : null}
@@ -927,7 +927,7 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
                 placeholder="Bemor yoki mutaxassis bo'yicha qidirish..."
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/10"
               />
-              <Button type="submit" variant="secondary">
+              <Button type="submit" variant="secondary" className="w-full sm:w-auto">
                 Qidirish
               </Button>
             </form>

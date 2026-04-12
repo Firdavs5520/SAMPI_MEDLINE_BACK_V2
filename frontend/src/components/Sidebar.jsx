@@ -142,7 +142,7 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
     : [];
 
   const linkClassName = ({ isActive }) =>
-    `flex items-center rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ease-out ${
+    `flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out ${
       compact ? "lg:justify-center lg:px-2" : "gap-2"
     } ${
       isActive ? "bg-primary text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
@@ -150,12 +150,12 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 w-[82vw] max-w-xs transform border-r border-slate-200 bg-white transition lg:static lg:max-w-none lg:translate-x-0 lg:transition-all lg:duration-300 lg:ease-out ${compact ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}
+      className={`fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[22rem] transform border-r border-slate-200 bg-white transition lg:static lg:max-w-none lg:translate-x-0 lg:transition-all lg:duration-300 lg:ease-out ${compact ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}
     >
       <div className="flex h-full flex-col">
-        <div className={`flex items-center border-b border-slate-200 py-4 ${compact ? "justify-center px-2" : "justify-between px-5"}`}>
+        <div className={`flex items-center border-b border-slate-200 py-4 ${compact ? "justify-center px-2" : "justify-between px-4 sm:px-5"}`}>
           <div className={`flex items-center gap-2 ${compact ? "lg:justify-center lg:w-full" : ""}`}>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-extrabold text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-extrabold text-primary">
               SM
             </div>
             <h2 className={`text-lg font-bold text-slate-800 ${compact ? "lg:hidden" : ""}`}>
@@ -202,7 +202,7 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
                   >
                     {group.name}
                   </p>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {group.items.map((item) => (
                       <NavLink
                         key={item.path}

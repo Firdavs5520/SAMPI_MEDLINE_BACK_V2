@@ -237,10 +237,10 @@ function CheckModal({ open, check, onClose }) {
       onClose={onClose}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={onClose}>
             Yopish
           </Button>
-          <Button variant="accent" onClick={handlePrint}>
+          <Button variant="accent" className="w-full sm:w-auto" onClick={handlePrint}>
             Chop etish (yangi oyna)
           </Button>
         </>

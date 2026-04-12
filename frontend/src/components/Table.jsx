@@ -8,7 +8,7 @@ function Table({
 }) {
   return (
     <div className="w-full overflow-x-auto rounded-xl border border-slate-200">
-      <table className={`min-w-full table-auto bg-white text-sm ${tableClassName}`.trim()}>
+      <table className={`min-w-[720px] table-auto bg-white text-sm ${tableClassName}`.trim()}>
         <thead className={`bg-slate-50 text-left text-slate-600 ${headerClassName}`.trim()}>
           <tr>
             {columns.map((col) => (
@@ -37,7 +37,7 @@ function Table({
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`whitespace-normal break-words px-3 py-3 align-top text-slate-700 sm:px-4 ${cellClassName}`.trim()}
+                    className={`whitespace-nowrap px-3 py-3 align-top text-slate-700 sm:px-4 ${cellClassName}`.trim()}
                   >
                     {col.render ? col.render(row) : row[col.key]}
                   </td>

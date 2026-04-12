@@ -322,7 +322,7 @@ function LorServicesPage() {
   }
 
   return (
-    <div className="space-y-6 overflow-x-hidden">
+    <div className="space-y-4 overflow-x-hidden sm:space-y-6">
       <div className="card border-sky-200 bg-sky-50/70 p-4 sm:p-5">
         <h1 className="text-xl font-bold text-slate-800">LOR paneli</h1>
         <p className="mt-1 text-sm text-slate-600">Bosqichma-bosqich chek yaratish</p>
@@ -331,7 +331,7 @@ function LorServicesPage() {
           Tanlangan LOR: {lorIdentity ? lorIdentity.toUpperCase() : "-"}
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {STEP_LABELS.map((label, index) => {
             const n = index + 1;
             const active = n === step;
@@ -422,7 +422,7 @@ function LorServicesPage() {
 
           <div className="mt-4 flex justify-end">
             <Button
-              className="bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
+              className="w-full bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 sm:w-auto"
               onClick={goNextFromSpecialist}
             >
               Keyingi: Bemor
@@ -450,12 +450,12 @@ function LorServicesPage() {
             onChange={(e) => setPatient({ fullName: toTitleCaseName(e.target.value) })}
           />
 
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(1)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(1)}>
               Orqaga
             </Button>
             <Button
-              className="bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
+              className="w-full bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 sm:w-auto"
               onClick={goNextFromPatient}
             >
               Keyingi: Xizmatlar
@@ -560,12 +560,12 @@ function LorServicesPage() {
             </div>
           ) : null}
 
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(2)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(2)}>
               Orqaga
             </Button>
             <Button
-              className="bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
+              className="w-full bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 sm:w-auto"
               onClick={goNextFromServices}
             >
               Keyingi: Preview
@@ -630,14 +630,14 @@ function LorServicesPage() {
             </div>
           ) : null}
 
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(3)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(3)}>
               Orqaga
             </Button>
             <Button
               loading={submittingCheckout}
               disabled={!selectedServiceIds.length}
-              className="bg-sky-600 hover:bg-sky-700 focus:ring-sky-300"
+              className="w-full bg-sky-600 hover:bg-sky-700 focus:ring-sky-300 sm:w-auto"
               onClick={handleCreateCheckout}
             >
               Chek chiqarish (Enter)

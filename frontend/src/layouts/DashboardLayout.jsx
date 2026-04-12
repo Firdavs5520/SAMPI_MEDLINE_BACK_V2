@@ -29,7 +29,7 @@ function DashboardLayout() {
   if (isLorSelectPage) {
     return (
       <div className="min-h-screen bg-slate-100">
-        <main className="min-w-0 p-3 sm:p-4 lg:p-6">
+        <main className="min-w-0 p-2.5 pb-4 sm:p-4 lg:p-6">
           <Outlet />
         </main>
       </div>
@@ -55,7 +55,7 @@ function DashboardLayout() {
 
       <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col">
         <Navbar onMenuOpen={() => setSidebarOpen(true)} />
-        <main className="min-w-0 flex-1 p-3 sm:p-4 lg:p-6">
+        <main className="min-w-0 flex-1 p-2.5 pb-4 sm:p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

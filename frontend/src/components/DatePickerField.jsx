@@ -127,7 +127,7 @@ function DatePickerField({ label, value, onChange }) {
       </button>
 
       {open ? (
-        <div className="absolute z-40 mt-1 w-[280px] max-w-[90vw] rounded-2xl border border-slate-200 bg-white p-3 shadow-lg">
+        <div className="absolute z-40 mt-1 w-[min(92vw,320px)] sm:w-[280px] rounded-2xl border border-slate-200 bg-white p-3 shadow-lg">
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"

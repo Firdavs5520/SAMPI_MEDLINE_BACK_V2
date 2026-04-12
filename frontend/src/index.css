@@ -41,6 +41,24 @@ body {
   @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
 }
 
+@media (max-width: 640px) {
+  .card {
+    border-radius: 1rem;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-size: 16px;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+}
+
 .sampi-select {
   appearance: none;
   -webkit-appearance: none;

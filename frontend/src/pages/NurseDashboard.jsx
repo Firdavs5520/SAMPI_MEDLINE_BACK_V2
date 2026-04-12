@@ -361,11 +361,11 @@ function NurseDashboard() {
   if (loading) return <Spinner text="Hamshira paneli yuklanmoqda..." />;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="card border-rose-200 bg-rose-50/70 p-4 sm:p-5">
         <h1 className="text-xl font-bold text-slate-800">Hamshira paneli</h1>
         <p className="mt-1 text-sm text-slate-600">Bosqichma-bosqich chek yaratish</p>
-        <div className="mt-4 grid gap-2 sm:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
           {STEP_LABELS.map((label, i) => {
             const n = i + 1;
             const active = n === step;
@@ -449,7 +449,7 @@ function NurseDashboard() {
 
           <div className="mt-4 flex justify-end">
             <Button
-              className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
+              className="w-full bg-rose-600 hover:bg-rose-700 focus:ring-rose-300 sm:w-auto"
               onClick={goNextFromSpecialist}
             >
               Keyingi: Bemor
@@ -476,12 +476,12 @@ function NurseDashboard() {
             inputRef={patientInputRef}
             onChange={(e) => setPatient({ fullName: toTitleCaseName(e.target.value) })}
           />
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(1)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(1)}>
               Orqaga
             </Button>
             <Button
-              className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
+              className="w-full bg-rose-600 hover:bg-rose-700 focus:ring-rose-300 sm:w-auto"
               onClick={goNextFromPatient}
             >
               Keyingi: Dorilar
@@ -569,13 +569,14 @@ function NurseDashboard() {
             </div>
           ) : null}
 
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(2)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(2)}>
               Orqaga
             </Button>
-            <div className="flex gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <Button
                 variant="secondary"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setSelectedMedicineIds([]);
                   setMedicineInputs({});
@@ -585,7 +586,7 @@ function NurseDashboard() {
                 Skip
               </Button>
               <Button
-                className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
+                className="w-full bg-rose-600 hover:bg-rose-700 focus:ring-rose-300 sm:w-auto"
                 onClick={goNextFromMedicines}
               >
                 Keyingi
@@ -694,13 +695,14 @@ function NurseDashboard() {
             </div>
           ) : null}
 
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(3)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(3)}>
               Orqaga
             </Button>
-            <div className="flex gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <Button
                 variant="secondary"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setSelectedServiceIds([]);
                   setServiceInputs({});
@@ -710,7 +712,7 @@ function NurseDashboard() {
                 Skip
               </Button>
               <Button
-                className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
+                className="w-full bg-rose-600 hover:bg-rose-700 focus:ring-rose-300 sm:w-auto"
                 onClick={goNextFromServices}
               >
                 Keyingi
@@ -786,14 +788,14 @@ function NurseDashboard() {
             </div>
           ) : null}
 
-          <div className="mt-4 flex justify-between">
-            <Button variant="secondary" onClick={() => setStep(4)}>
+          <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setStep(4)}>
               Orqaga
             </Button>
             <Button
               disabled={!hasAnySelection}
               loading={submitting}
-              className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-300"
+              className="w-full bg-rose-600 hover:bg-rose-700 focus:ring-rose-300 sm:w-auto"
               onClick={handleCheckout}
             >
               Chek chiqarish (Enter)
