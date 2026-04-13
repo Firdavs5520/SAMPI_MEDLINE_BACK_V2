@@ -142,7 +142,7 @@ function DashboardLayout() {
   return (
     <div className="flex min-h-screen w-full overflow-x-hidden bg-slate-100">
       <div
-        className="pointer-events-none fixed left-1/2 top-2 z-[70] -translate-x-1/2 transition-transform duration-200"
+        className="pointer-events-none fixed left-1/2 top-2 z-[35] -translate-x-1/2 transition-transform duration-200"
         style={{ transform: `translate(-50%, ${-56 + pullDistance}px)` }}
       >
         <div
@@ -175,7 +175,7 @@ function DashboardLayout() {
         />
       ) : null}
 
-      <div className="relative z-10 flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-screen min-w-0 flex-1 flex-col">
         <Navbar onMenuOpen={() => setSidebarOpen(true)} />
         <main className="min-w-0 flex-1 p-2.5 pb-4 sm:p-4 lg:p-6">
           <Outlet />
