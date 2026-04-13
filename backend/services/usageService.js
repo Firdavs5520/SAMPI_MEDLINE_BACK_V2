@@ -15,6 +15,7 @@ const SERVICE_PRICE_TIER_LABELS = {
   second: "2-marta",
   third: "3-marta"
 };
+const IDEMPOTENCY_KEY_MAX_LENGTH = 120;
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
@@ -150,6 +151,75 @@ const normalizeSpecialistName = (value, label = "Mutaxassis") => {
   return name;
 };
 
+const normalizeIdempotencyKey = (value) => {
+  const safe = String(value || "").trim();
+  if (!safe) return null;
+
+  if (safe.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+    throw new AppError(
+      `Idempotency key uzunligi ${IDEMPOTENCY_KEY_MAX_LENGTH} belgidan oshmasligi kerak`,
+      400
+    );
+  }
+
+  return safe;
+};
+
+const parseSearchDateRange = (value) => {
+  const safe = String(value || "").trim();
+  if (!safe) return null;
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(safe);
+  const dottedMatch = /^(\d{2})[./-](\d{2})[./-](\d{4})$/.exec(safe);
+  let year;
+  let month;
+  let day;
+
+  if (isoMatch) {
+    year = Number(isoMatch[1]);
+    month = Number(isoMatch[2]);
+    day = Number(isoMatch[3]);
+  } else if (dottedMatch) {
+    day = Number(dottedMatch[1]);
+    month = Number(dottedMatch[2]);
+    year = Number(dottedMatch[3]);
+  } else {
+    return null;
+  }
+
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+  return { start, end };
+};
+
+const hasDebtOnlyKeyword = (value) => {
+  const safe = String(value || "")
+    .trim()
+    .toLowerCase();
+  return ["qarz", "qarzdor", "debt"].includes(safe);
+};
+
+const hasPaidOnlyKeyword = (value) => {
+  const safe = String(value || "")
+    .trim()
+    .toLowerCase();
+  return ["tolangan", "to'langan", "paid"].includes(safe);
+};
+
 const assertSpecialistRole = (user) => {
   const role = String(user?.role || "").toLowerCase();
   if (!ROLE_SPECIALIST_TYPES.includes(role)) {
@@ -170,6 +240,15 @@ const createUniqueCheckId = async (session) => {
   }
 
   throw new AppError("Yagona chek ID yaratib bo'lmadi", 500);
+};
+
+const findCheckByIdempotency = async ({ userId, idempotencyKey }) => {
+  if (!idempotencyKey) return null;
+
+  return Check.findOne({
+    "createdBy.userId": userId,
+    idempotencyKey
+  });
 };
 
 const buildCreatedByPayload = (user, options = {}) => {
@@ -417,24 +496,31 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
     "createdBy.userId": user._id
   };
 
-  if (user.role === "lor" && lorIdentity) {
-    filter.$or = [
-      { "createdBy.lorIdentity": normalizeLorIdentity(lorIdentity) },
-      { "createdBy.lorIdentity": { $exists: false } }
-    ];
+  if (user.role === "lor") {
+    filter["createdBy.lorIdentity"] = normalizeLorIdentity(lorIdentity);
   }
 
   const safeSearch = String(search || "").trim();
   if (safeSearch) {
     const pattern = escapeRegex(safeSearch);
+    const dateRange = parseSearchDateRange(safeSearch);
+    const searchConditions = [
+      { checkId: { $regex: pattern, $options: "i" } },
+      { "patient.fullName": { $regex: pattern, $options: "i" } },
+      { "patient.firstName": { $regex: pattern, $options: "i" } },
+      { "patient.lastName": { $regex: pattern, $options: "i" } }
+    ];
+
+    if (dateRange) {
+      searchConditions.push({
+        createdAt: { $gte: dateRange.start, $lte: dateRange.end }
+      });
+    }
+
     filter.$and = [
       ...(filter.$and || []),
       {
-        $or: [
-          { "patient.fullName": { $regex: pattern, $options: "i" } },
-          { "patient.firstName": { $regex: pattern, $options: "i" } },
-          { "patient.lastName": { $regex: pattern, $options: "i" } }
-        ]
+        $or: searchConditions
       }
     ];
   }
@@ -457,9 +543,9 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
       .map((row) => [String(row.checkRef), row])
   );
 
-  return checks.map((check) => {
+  const rows = checks.map((check) => {
     const cashierEntry = cashierByCheckId.get(String(check._id));
-    return {
+    const row = {
       ...check,
       cashierStatus: cashierEntry
         ? {
@@ -479,7 +565,25 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
             acceptedAt: null
           }
     };
+
+    return row;
   });
+
+  return filterChecksByDebtKeyword(rows, safeSearch);
+};
+
+const filterChecksByDebtKeyword = (checks, safeSearch) => {
+  if (!safeSearch) return checks;
+
+  if (hasDebtOnlyKeyword(safeSearch)) {
+    return checks.filter((item) => Number(item?.cashierStatus?.debtAmount || 0) > 0);
+  }
+
+  if (hasPaidOnlyKeyword(safeSearch)) {
+    return checks.filter((item) => Number(item?.cashierStatus?.debtAmount || 0) <= 0);
+  }
+
+  return checks;
 };
 
 const getRoleSpecialists = async ({ user, search = "" }) => {
@@ -567,10 +671,22 @@ const createNurseCheckout = async ({
   patient,
   specialistId,
   specialistName,
+  idempotencyKey,
   user
 }) => {
   if (!user || user.role !== "nurse") {
     throw new AppError("Bu chekni faqat hamshira yaratishi mumkin", 403);
+  }
+
+  const safeIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
+  if (safeIdempotencyKey) {
+    const existing = await findCheckByIdempotency({
+      userId: user._id,
+      idempotencyKey: safeIdempotencyKey
+    });
+    if (existing) {
+      return { check: existing, idempotentReplay: true };
+    }
   }
 
   const medicineItems = Array.isArray(medicines) ? medicines : [];
@@ -739,6 +855,7 @@ const createNurseCheckout = async ({
       [
         {
           checkId,
+          ...(safeIdempotencyKey ? { idempotencyKey: safeIdempotencyKey } : {}),
           type: resolveCheckType(normalizedMedicineItems.length, normalizedServiceItems.length),
           items: checkItems,
           total: Number(total.toFixed(2)),
@@ -752,9 +869,20 @@ const createNurseCheckout = async ({
     );
 
     await session.commitTransaction();
-    return { check };
+    return { check, idempotentReplay: false };
   } catch (error) {
     await safeAbortTransaction(session);
+
+    if (safeIdempotencyKey && error?.code === 11000) {
+      const existing = await findCheckByIdempotency({
+        userId: user._id,
+        idempotencyKey: safeIdempotencyKey
+      });
+      if (existing) {
+        return { check: existing, idempotentReplay: true };
+      }
+    }
+
     throw error;
   } finally {
     session.endSession();
@@ -767,10 +895,22 @@ const createLorCheckout = async ({
   lorIdentity,
   specialistId,
   specialistName,
+  idempotencyKey,
   user
 }) => {
   if (!user || user.role !== "lor") {
     throw new AppError("Bu chekni faqat lor yaratishi mumkin", 403);
+  }
+
+  const safeIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
+  if (safeIdempotencyKey) {
+    const existing = await findCheckByIdempotency({
+      userId: user._id,
+      idempotencyKey: safeIdempotencyKey
+    });
+    if (existing) {
+      return { check: existing, idempotentReplay: true };
+    }
   }
 
   const serviceItems = Array.isArray(services) ? services : [];
@@ -855,6 +995,7 @@ const createLorCheckout = async ({
       [
         {
           checkId,
+          ...(safeIdempotencyKey ? { idempotencyKey: safeIdempotencyKey } : {}),
           type: "service",
           items: checkItems,
           total: Number(total.toFixed(2)),
@@ -869,9 +1010,20 @@ const createLorCheckout = async ({
     );
 
     await session.commitTransaction();
-    return { check };
+    return { check, idempotentReplay: false };
   } catch (error) {
     await safeAbortTransaction(session);
+
+    if (safeIdempotencyKey && error?.code === 11000) {
+      const existing = await findCheckByIdempotency({
+        userId: user._id,
+        idempotencyKey: safeIdempotencyKey
+      });
+      if (existing) {
+        return { check: existing, idempotentReplay: true };
+      }
+    }
+
     throw error;
   } finally {
     session.endSession();

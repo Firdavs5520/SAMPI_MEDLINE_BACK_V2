@@ -51,6 +51,49 @@ const reportService = {
     );
   },
 
+  async getShiftCloseReport(date) {
+    const { data } = await api.get("/reports/shift-close", {
+      params: { date }
+    });
+    return (
+      data.data || {
+        date: date || "",
+        shift: { fromLabel: "08:00", toLabel: "02:00" },
+        totals: {
+          totalAmount: 0,
+          totalPaidAmount: 0,
+          totalDebtAmount: 0,
+          entriesCount: 0
+        },
+        byPaymentMethod: [],
+        byDepartment: [],
+        topSpecialists: []
+      }
+    );
+  },
+
+  async getMonitoring() {
+    const { data } = await api.get("/reports/monitoring");
+    return (
+      data.data || {
+        health: {
+          success: true,
+          message: "",
+          now: "",
+          uptimeSec: 0,
+          startedAt: "",
+          dbState: "disconnected"
+        },
+        metrics: {
+          errors5xxLast24h: 0,
+          restartCountLast7d: 0
+        },
+        recentErrors: [],
+        recentStartups: []
+      }
+    );
+  },
+
   async getStock() {
     const { data } = await api.get("/reports/current-stock");
     return data.data || [];

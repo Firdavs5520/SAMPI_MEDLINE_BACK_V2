@@ -41,11 +41,26 @@ const getMostUsedMedicines = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: mostUsed });
 });
 
+const getShiftCloseReport = asyncHandler(async (req, res) => {
+  const data = await reportService.getShiftCloseReport({
+    date: req.query.date
+  });
+
+  res.status(200).json({ success: true, data });
+});
+
+const getMonitoring = asyncHandler(async (req, res) => {
+  const data = await reportService.getMonitoringOverview();
+  res.status(200).json({ success: true, data });
+});
+
 module.exports = {
   getAllChecks,
   getRevenue,
   getOverview,
   getMedicineUsageHistory,
   getCurrentStock,
-  getMostUsedMedicines
+  getMostUsedMedicines,
+  getShiftCloseReport,
+  getMonitoring
 };

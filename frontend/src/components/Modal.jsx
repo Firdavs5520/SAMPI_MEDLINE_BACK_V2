@@ -10,18 +10,24 @@ function Modal({
   panelClassName = "",
   bodyClassName = ""
 }) {
-  if (!open) return null;
-
   useEffect(() => {
+    if (!open) return undefined;
+
     const previousOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
     };
-  }, []);
+  }, [open]);
+
+  if (!open) return null;
 
   const modalNode = (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/55 p-3 sm:p-4 backdrop-blur-[1px]">
+    <div className="fixed inset-0 z-[1000] flex min-h-dvh w-screen items-center justify-center bg-slate-900/55 p-3 sm:p-4 backdrop-blur-[1px]">
       <div className={`w-full max-w-2xl rounded-2xl bg-white shadow-xl ${panelClassName}`}>
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5 sm:py-4">
           <h3 className="text-lg font-semibold text-slate-800">{title}</h3>

@@ -70,6 +70,11 @@ const cashierService = {
     return data.data;
   },
 
+  async payDebt(entryId, payload) {
+    const { data } = await api.post(`/cashier/entries/${entryId}/payments`, payload);
+    return data.data;
+  },
+
   async deleteEntry(entryId) {
     const { data } = await api.delete(`/cashier/entries/${entryId}`);
     return data.data;

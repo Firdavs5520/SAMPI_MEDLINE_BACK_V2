@@ -268,6 +268,16 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
       nextFilters.debtOnly = true;
     }
 
+    if (!lockedType) {
+      if (nextFilters.department === "lor" && nextFilters.specialistType === "nurse") {
+        nextFilters.specialistType = "lor";
+      }
+
+      if (nextFilters.department === "nurse" && nextFilters.specialistType === "lor") {
+        nextFilters.specialistType = "nurse";
+      }
+    }
+
     return nextFilters;
   };
 
@@ -690,14 +700,10 @@ function CashierDashboard({ forcedSection = "nurse-patients" }) {
     setClosingDebtId(entry._id);
 
     try {
-      const totalAmount = safeNumber(entry.amount, 0);
-      if (totalAmount <= 0) {
-        throw new Error("Yozuv summasi noto'g'ri.");
-      }
-
-      await cashierService.updateEntry(entry._id, {
-        paidAmount: totalAmount,
+      await cashierService.payDebt(entry._id, {
+        amount: currentDebt,
         paymentMethod: entry.paymentMethod || "cash",
+        patientPhone: entry.patientPhone || "",
         note: entry.note || ""
       });
 

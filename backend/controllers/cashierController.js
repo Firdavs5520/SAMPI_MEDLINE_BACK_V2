@@ -60,6 +60,16 @@ const updateEntry = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: entry });
 });
 
+const payDebt = asyncHandler(async (req, res) => {
+  const entry = await cashierService.payDebt({
+    entryId: req.params.id,
+    payload: req.body,
+    user: req.user
+  });
+
+  res.status(200).json({ success: true, data: entry });
+});
+
 const deleteEntry = asyncHandler(async (req, res) => {
   const result = await cashierService.deleteEntry({
     entryId: req.params.id,
@@ -106,5 +116,6 @@ module.exports = {
   deleteSpecialist,
   createEntry,
   updateEntry,
+  payDebt,
   deleteEntry
 };
