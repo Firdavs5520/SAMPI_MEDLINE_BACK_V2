@@ -32,7 +32,7 @@ function Table({
             data.map((row, rowIndex) => (
               <tr
                 key={row._id || row.id || rowIndex}
-                className={`border-t border-slate-100 ${rowClassName}`.trim()}
+                className={`border-t border-slate-100 transition-colors duration-200 hover:bg-slate-50/80 ${rowClassName}`.trim()}
               >
                 {columns.map((col) => (
                   <td

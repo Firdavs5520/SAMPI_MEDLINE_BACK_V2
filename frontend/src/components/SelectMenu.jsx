@@ -57,7 +57,7 @@ function SelectMenu({ label, value, options, onChange, disabled = false }) {
       </button>
 
       {open ? (
-        <div className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="animate-dropdown-pop absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {options.map((option) => {
             const active = option.value === value;
             return (

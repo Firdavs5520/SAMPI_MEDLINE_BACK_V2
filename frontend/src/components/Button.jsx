@@ -22,7 +22,7 @@ function Button({
     <button
       type={type}
       disabled={loading || disabled}
-      className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-4 ${variants[variant]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-4 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none enabled:hover:-translate-y-0.5 enabled:hover:shadow-md active:translate-y-0 ${variants[variant]} ${className}`}
       {...props}
     >
       {loading ? "Yuklanmoqda..." : children}

@@ -56,7 +56,7 @@ function QuickSearchInput({
       </label>
 
       {open && query ? (
-        <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+        <div className="animate-dropdown-pop absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
           {suggestions.length > 0 ? (
             suggestions.map((entry) => (
               <button
