@@ -3,6 +3,8 @@ const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const CashierEntry = require("../models/CashierEntry");
+const Service = require("../models/Service");
+const CashierSpecialist = require("../models/CashierSpecialist");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
 const STAFF_ROLES = ["nurse", "lor"];
@@ -392,6 +394,46 @@ const resetTodayOperationalData = async ({ confirm }) => {
   return result;
 };
 
+const resetAllOperationalData = async ({ confirm }) => {
+  if (String(confirm || "").trim() !== "RESET_ALL") {
+    throw new AppError("Tasdiqlash uchun confirm=RESET_ALL yuboring", 400);
+  }
+
+  const session = await mongoose.startSession();
+  let result = null;
+
+  try {
+    await session.withTransaction(async () => {
+      const medUsageDelete = await MedicineUsage.deleteMany({}, { session });
+      const serviceUsageDelete = await ServiceUsage.deleteMany({}, { session });
+      const cashierEntriesDelete = await CashierEntry.deleteMany({}, { session });
+      const specialistsDelete = await CashierSpecialist.deleteMany({}, { session });
+      const servicesDelete = await Service.deleteMany({}, { session });
+      const medicinesDelete = await Medicine.deleteMany({}, { session });
+
+      // Check model delete middleware blocks deleteMany, so use native collection API.
+      const checksDelete = await Check.collection.deleteMany({}, { session });
+
+      result = {
+        timezone: "Asia/Tashkent",
+        scope: "all_time",
+        medicineUsageDeleted: Number(medUsageDelete.deletedCount || 0),
+        serviceUsageDeleted: Number(serviceUsageDelete.deletedCount || 0),
+        cashierEntriesDeleted: Number(cashierEntriesDelete.deletedCount || 0),
+        checksDeleted: Number(checksDelete.deletedCount || 0),
+        medicinesDeleted: Number(medicinesDelete.deletedCount || 0),
+        servicesDeleted: Number(servicesDelete.deletedCount || 0),
+        specialistsDeleted: Number(specialistsDelete.deletedCount || 0),
+        usersDeleted: 0
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return result;
+};
+
 module.exports = {
   getAllChecks,
   getTotalRevenue,
@@ -399,5 +441,6 @@ module.exports = {
   getMedicineUsageHistory,
   getCurrentStock,
   getMostUsedMedicines,
-  resetTodayOperationalData
+  resetTodayOperationalData,
+  resetAllOperationalData
 };
