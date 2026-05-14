@@ -1,6 +1,10 @@
 const Check = require("../models/Check");
 const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
+const ServiceUsage = require("../models/ServiceUsage");
+const CashierEntry = require("../models/CashierEntry");
+const AppError = require("../utils/AppError");
+const mongoose = require("mongoose");
 const STAFF_ROLES = ["nurse", "lor"];
 const TASHKENT_OFFSET_HOURS = 5;
 const TASHKENT_OFFSET_MS = TASHKENT_OFFSET_HOURS * 60 * 60 * 1000;
@@ -289,11 +293,111 @@ const getMostUsedMedicines = async (limit = 10) => {
   ]);
 };
 
+const getTodayRangeInTashkent = () => {
+  const nowUtc = new Date();
+  const nowInTashkent = getNowInTashkent(nowUtc);
+  const dayStartInTashkent = getTashkentDayStart(nowInTashkent);
+  const startUtc = toUtcFromTashkentDate(dayStartInTashkent);
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+  return {
+    dateLabel: nowInTashkent.toISOString().slice(0, 10),
+    startUtc,
+    endUtc
+  };
+};
+
+const resetTodayOperationalData = async ({ confirm }) => {
+  if (String(confirm || "").trim() !== "RESET_TODAY") {
+    throw new AppError("Tasdiqlash uchun confirm=RESET_TODAY yuboring", 400);
+  }
+
+  const { dateLabel, startUtc, endUtc } = getTodayRangeInTashkent();
+  const session = await mongoose.startSession();
+
+  let result = null;
+  try {
+    await session.withTransaction(async () => {
+      const medUsageAgg = await MedicineUsage.aggregate([
+        {
+          $match: {
+            usedAt: { $gte: startUtc, $lte: endUtc }
+          }
+        },
+        {
+          $group: {
+            _id: "$medicineId",
+            totalQty: { $sum: "$quantity" }
+          }
+        }
+      ]).session(session);
+
+      const stockRestoreOps = medUsageAgg
+        .filter((row) => row?._id && Number(row.totalQty) > 0)
+        .map((row) => ({
+          updateOne: {
+            filter: { _id: row._id },
+            update: { $inc: { stock: Number(row.totalQty) } }
+          }
+        }));
+
+      let restoredMedicineStocks = 0;
+      if (stockRestoreOps.length > 0) {
+        const restoreRes = await Medicine.bulkWrite(stockRestoreOps, { session });
+        restoredMedicineStocks = Number(restoreRes.modifiedCount || 0);
+      }
+
+      const medUsageDelete = await MedicineUsage.deleteMany(
+        { usedAt: { $gte: startUtc, $lte: endUtc } },
+        { session }
+      );
+
+      const serviceUsageDelete = await ServiceUsage.deleteMany(
+        { usedAt: { $gte: startUtc, $lte: endUtc } },
+        { session }
+      );
+
+      const cashierEntriesDelete = await CashierEntry.deleteMany(
+        {
+          $or: [
+            { entryDate: { $gte: startUtc, $lte: endUtc } },
+            { createdAt: { $gte: startUtc, $lte: endUtc } }
+          ]
+        },
+        { session }
+      );
+
+      // Check model delete middleware blocks deleteMany, so use native collection API.
+      const checksDelete = await Check.collection.deleteMany(
+        { createdAt: { $gte: startUtc, $lte: endUtc } },
+        { session }
+      );
+
+      result = {
+        timezone: "Asia/Tashkent",
+        date: dateLabel,
+        startUtc: startUtc.toISOString(),
+        endUtc: endUtc.toISOString(),
+        restoredMedicineStocks,
+        medicineUsageDeleted: Number(medUsageDelete.deletedCount || 0),
+        serviceUsageDeleted: Number(serviceUsageDelete.deletedCount || 0),
+        cashierEntriesDeleted: Number(cashierEntriesDelete.deletedCount || 0),
+        checksDeleted: Number(checksDelete.deletedCount || 0)
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return result;
+};
+
 module.exports = {
   getAllChecks,
   getTotalRevenue,
   getManagerOverview,
   getMedicineUsageHistory,
   getCurrentStock,
-  getMostUsedMedicines
+  getMostUsedMedicines,
+  resetTodayOperationalData
 };
