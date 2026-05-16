@@ -534,7 +534,9 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
   const cashierEntries = await CashierEntry.find({
     checkRef: { $in: checkIds }
   })
-    .select("checkRef amount paidAmount debtAmount paymentMethod entryDate createdAt")
+    .select(
+      "checkRef checkCode amount paidAmount debtAmount paymentMethod patientPhone note specialistName entryDate createdAt createdBy.name"
+    )
     .lean();
 
   const cashierByCheckId = new Map(
@@ -550,19 +552,29 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
       cashierStatus: cashierEntry
         ? {
             accepted: true,
+            checkCode: String(cashierEntry.checkCode || "").trim(),
             amount: Number(cashierEntry.amount || check.total || 0),
             paidAmount: Number(cashierEntry.paidAmount || 0),
             debtAmount: Number(cashierEntry.debtAmount || 0),
             paymentMethod: cashierEntry.paymentMethod || "cash",
-            acceptedAt: cashierEntry.entryDate || cashierEntry.createdAt
+            acceptedAt: cashierEntry.entryDate || cashierEntry.createdAt,
+            patientPhone: String(cashierEntry.patientPhone || "").trim(),
+            note: String(cashierEntry.note || "").trim(),
+            specialistName: String(cashierEntry.specialistName || "").trim(),
+            acceptedByName: String(cashierEntry?.createdBy?.name || "").trim()
           }
         : {
             accepted: false,
+            checkCode: "",
             amount: Number(check.total || 0),
             paidAmount: 0,
             debtAmount: Number(check.total || 0),
             paymentMethod: null,
-            acceptedAt: null
+            acceptedAt: null,
+            patientPhone: "",
+            note: "",
+            specialistName: "",
+            acceptedByName: ""
           }
     };
 

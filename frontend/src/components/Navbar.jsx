@@ -35,7 +35,7 @@ function Navbar({ onMenuOpen }) {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+    <header className="sampi-navbar sticky top-0 z-20 border-b border-slate-200 backdrop-blur">
       <div className="flex min-w-0 items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 lg:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <button
@@ -61,10 +61,12 @@ function Navbar({ onMenuOpen }) {
           <button
             type="button"
             onClick={handleGoHome}
-            className="min-w-0 rounded-lg px-2 py-1 text-left text-sm text-slate-600 hover:bg-slate-100"
+            className="sampi-navbar-user min-w-0 rounded-xl px-2.5 py-1.5 text-left text-sm"
           >
-            <div className="truncate font-semibold text-slate-800">{displayName}</div>
-            <div className="hidden truncate text-xs sm:block">{roleLabels[user?.role] || "-"}</div>
+            <div className="sampi-navbar-user-name truncate font-semibold">{displayName}</div>
+            <div className="sampi-navbar-user-role hidden truncate text-xs sm:block">
+              {roleLabels[user?.role] || "-"}
+            </div>
           </button>
         </div>
         <Button

@@ -142,23 +142,29 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
     : [];
 
   const linkClassName = ({ isActive }) =>
-    `flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out ${
+    `sampi-sidebar-link flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out ${
       compact ? "lg:justify-center lg:px-2" : "gap-2"
     } ${
-      isActive ? "bg-primary text-white shadow-sm" : "text-slate-700 hover:bg-slate-100"
+      isActive ? "bg-primary text-white shadow-sm" : "text-slate-700 hover:bg-slate-100 hover:text-slate-900"
     }`;
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[22rem] transform border-r border-slate-200 bg-white transition lg:static lg:max-w-none lg:translate-x-0 lg:transition-all lg:duration-300 lg:ease-out ${compact ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}
+      className={`sampi-sidebar fixed inset-y-0 left-0 z-40 w-[88vw] max-w-[22rem] transform border-r border-slate-200 lg:static lg:max-w-none lg:translate-x-0 ${compact ? "lg:w-20" : "lg:w-64"} ${open ? "translate-x-0" : "-translate-x-full"}`}
     >
       <div className="flex h-full flex-col">
         <div className={`flex items-center border-b border-slate-200 py-4 ${compact ? "justify-center px-2" : "justify-between px-4 sm:px-5"}`}>
-          <div className={`flex items-center gap-2 ${compact ? "lg:justify-center lg:w-full" : ""}`}>
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-extrabold text-primary">
+          <div className={`flex min-w-0 items-center gap-2 ${compact ? "lg:justify-center lg:w-full" : ""}`}>
+            <div className="sampi-brand-mark flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-sm font-extrabold text-primary">
               SM
             </div>
-            <h2 className={`text-lg font-bold text-slate-800 ${compact ? "lg:hidden" : ""}`}>
+            <h2
+              className={`sampi-brand-title text-lg font-bold leading-tight text-slate-800 ${
+                compact
+                  ? "lg:pointer-events-none lg:max-w-0 lg:translate-x-1 lg:opacity-0"
+                  : "lg:max-w-[12rem] lg:translate-x-0 lg:opacity-100"
+              }`}
+            >
               Sampi Medline
             </h2>
           </div>
@@ -195,7 +201,7 @@ function Sidebar({ open, onClose, compact = false, onToggleCompact }) {
             ? groupedMenus.map((group) => (
                 <div
                   key={group.name}
-                  className={`rounded-2xl p-2 ${compact ? "lg:border-0 lg:bg-transparent lg:px-0" : "border border-slate-200/80 bg-slate-50/80"}`}
+                  className={`sampi-sidebar-group rounded-2xl p-2 ${compact ? "lg:border-0 lg:bg-transparent lg:px-0" : "border border-slate-200/80 bg-slate-50/80"}`}
                 >
                   <p
                     className={`px-2 pb-1 pt-0.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 ${compact ? "lg:hidden" : ""}`}

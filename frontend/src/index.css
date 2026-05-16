@@ -4,6 +4,12 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --sampi-primary: #0e7490;
+  --sampi-accent: #f97316;
+  --sampi-surface: #f1f5f9;
+}
+
 body {
   @apply bg-slate-100 text-slate-800;
   margin: 0;
@@ -37,6 +43,16 @@ body {
   background: linear-gradient(180deg, #0d9488, #0284c7);
 }
 
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  transition:
+    border-color 170ms ease,
+    box-shadow 180ms ease,
+    background-color 170ms ease,
+    transform 140ms ease;
+}
+
 .card {
   @apply relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300;
 }
@@ -55,11 +71,121 @@ body {
   background:
     radial-gradient(circle at 8% -8%, rgba(14, 116, 144, 0.12), transparent 36%),
     radial-gradient(circle at 90% 0%, rgba(249, 115, 22, 0.1), transparent 30%),
-    #f1f5f9;
+    var(--sampi-surface);
 }
 
 .route-enter {
   animation: page-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.route-enter > div > * {
+  opacity: 0;
+  animation: section-appear 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.route-enter > div > *:nth-child(1) {
+  animation-delay: 35ms;
+}
+
+.route-enter > div > *:nth-child(2) {
+  animation-delay: 75ms;
+}
+
+.route-enter > div > *:nth-child(3) {
+  animation-delay: 115ms;
+}
+
+.route-enter > div > *:nth-child(4) {
+  animation-delay: 155ms;
+}
+
+.route-enter > div > *:nth-child(5) {
+  animation-delay: 195ms;
+}
+
+.sampi-navbar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.93) 100%
+  );
+  box-shadow: 0 6px 20px -18px rgba(15, 23, 42, 0.6);
+}
+
+.sampi-navbar-user {
+  color: #0f172a;
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  transition:
+    transform 160ms ease,
+    background-color 170ms ease,
+    box-shadow 190ms ease,
+    border-color 170ms ease;
+}
+
+.sampi-navbar-user-name {
+  color: #0f172a;
+}
+
+.sampi-navbar-user-role {
+  color: #475569;
+}
+
+.sampi-navbar-user:hover {
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.94));
+  border-color: rgba(100, 116, 139, 0.55);
+  box-shadow:
+    inset 0 0 0 1px rgba(148, 163, 184, 0.28),
+    0 8px 18px -14px rgba(15, 23, 42, 0.6);
+}
+
+.sampi-navbar-user:active {
+  transform: translateY(1px);
+}
+
+.sampi-sidebar {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.96)),
+    radial-gradient(circle at 0% 0%, rgba(14, 116, 144, 0.08), transparent 45%);
+  overflow: hidden;
+  transition: transform 280ms ease-out, width 280ms ease-out;
+}
+
+.sampi-brand-mark {
+  box-shadow: inset 0 0 0 1px rgba(14, 116, 144, 0.12), 0 6px 16px -12px rgba(14, 116, 144, 0.65);
+}
+
+.sampi-sidebar-group {
+  transition: border-color 180ms ease, background-color 180ms ease, box-shadow 200ms ease;
+}
+
+.sampi-brand-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 180ms ease, transform 180ms ease, max-width 220ms ease;
+}
+
+.sampi-sidebar-link {
+  position: relative;
+}
+
+.sampi-sidebar-link::after {
+  content: "";
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 0.28rem;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.3), rgba(249, 115, 22, 0.2));
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.sampi-sidebar-link:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .route-enter .card {
@@ -175,7 +301,7 @@ body {
 }
 
 .lor-choice-action::after {
-  content: "→";
+  content: "->";
   margin-left: 0.35rem;
   transition: transform 200ms ease;
 }
@@ -189,10 +315,125 @@ body {
   animation: dropdown-pop 180ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
 
+.sampi-dropdown {
+  border-color: #dbe5ee;
+  box-shadow:
+    0 10px 24px -20px rgba(15, 23, 42, 0.66),
+    0 10px 24px -16px rgba(14, 116, 144, 0.2);
+}
+
+.sampi-control {
+  transition:
+    border-color 170ms ease,
+    box-shadow 190ms ease,
+    transform 140ms ease,
+    background-color 170ms ease;
+}
+
+.sampi-control:hover {
+  border-color: rgba(14, 116, 144, 0.45);
+}
+
+.sampi-control:focus,
+.sampi-control:focus-visible {
+  border-color: rgba(14, 116, 144, 0.85);
+  box-shadow:
+    0 0 0 4px rgba(14, 116, 144, 0.12),
+    0 8px 20px -16px rgba(14, 116, 144, 0.7);
+}
+
+.sampi-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.sampi-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.18) 50%, transparent 100%);
+  transform: translateX(-140%);
+  transition: transform 420ms ease;
+}
+
+.sampi-btn:hover::after {
+  transform: translateX(140%);
+}
+
+.sampi-table-row {
+  position: relative;
+  transition:
+    background-color 180ms ease,
+    transform 170ms ease,
+    box-shadow 200ms ease;
+}
+
+.sampi-table-row:hover {
+  box-shadow: inset 0 0 0 1px rgba(203, 213, 225, 0.4);
+}
+
+.sampi-table-row:hover td {
+  color: #0f172a;
+}
+
+.sampi-table-row > td:first-child {
+  position: relative;
+}
+
+.sampi-table-row > td:first-child::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(14, 116, 144, 0.95), rgba(249, 115, 22, 0.8));
+  opacity: 0;
+  transform: scaleY(0.35);
+  transform-origin: center;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.sampi-table-row:hover > td:first-child::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.sampi-alert {
+  animation: toast-enter 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sampi-modal-overlay {
+  animation: fade-in 180ms ease both;
+}
+
+.sampi-modal-panel {
+  animation: modal-appear 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sampi-busy-panel {
+  animation: modal-appear 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sampi-spin-dot {
+  animation: spin 900ms linear infinite;
+}
+
 @keyframes page-enter {
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes section-appear {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
   }
   to {
     opacity: 1;
@@ -208,6 +449,43 @@ body {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -283,13 +561,26 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .route-enter,
+  .route-enter > div > *,
   .route-enter .card,
   .lor-select-glow,
+  .sampi-sidebar-group,
   .lor-choice-card,
   .lor-choice-action::after,
-  .animate-dropdown-pop {
+  .animate-dropdown-pop,
+  .sampi-btn::after,
+  .sampi-alert,
+  .sampi-modal-overlay,
+  .sampi-modal-panel,
+  .sampi-busy-panel,
+  .sampi-spin-dot {
     animation: none !important;
     transition: none !important;
+  }
+
+  .route-enter > div > * {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 
@@ -324,3 +615,4 @@ body {
     overflow: hidden;
   }
 }
+
