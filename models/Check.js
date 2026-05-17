@@ -38,6 +38,12 @@ const checkSchema = new mongoose.Schema(
       unique: true,
       immutable: true
     },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      immutable: true
+    },
     type: {
       type: String,
       enum: ["medicine", "service", "mixed"],
@@ -121,5 +127,10 @@ checkSchema.pre("replaceOne", immutableError);
 checkSchema.pre("findOneAndDelete", immutableError);
 checkSchema.pre("deleteOne", immutableError);
 checkSchema.pre("deleteMany", immutableError);
+
+checkSchema.index(
+  { "createdBy.userId": 1, idempotencyKey: 1 },
+  { unique: true, sparse: true }
+);
 
 module.exports = mongoose.model("Check", checkSchema);

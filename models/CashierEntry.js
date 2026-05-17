@@ -1,5 +1,61 @@
 const mongoose = require("mongoose");
 
+const debtPaymentSchema = new mongoose.Schema(
+  {
+    amount: {
+      type: Number,
+      required: true,
+      min: 0.01
+    },
+    previousDebtAmount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    remainingDebtAmount: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    paidTotalAfterPayment: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "card", "transfer"],
+      required: true
+    },
+    note: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    paidBy: {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+      },
+      role: {
+        type: String,
+        enum: ["cashier", "manager"],
+        required: true
+      },
+      name: {
+        type: String,
+        required: true
+      }
+    },
+    paidAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  { _id: true }
+);
+
 const cashierEntrySchema = new mongoose.Schema(
   {
     source: {
@@ -17,6 +73,25 @@ const cashierEntrySchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: ""
+    },
+    checkCreatorRole: {
+      type: String,
+      enum: ["nurse", "lor"],
+      default: null
+    },
+    checkCreatorName: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    checkLorIdentity: {
+      type: String,
+      enum: ["lor1", "lor2", null],
+      default: null
+    },
+    checkCreatedAt: {
+      type: Date,
+      default: null
     },
     department: {
       type: String,
@@ -66,6 +141,10 @@ const cashierEntrySchema = new mongoose.Schema(
       min: 0,
       default: 0,
       index: true
+    },
+    debtPayments: {
+      type: [debtPaymentSchema],
+      default: []
     },
     patientPhone: {
       type: String,

@@ -41,16 +41,21 @@ const getMostUsedMedicines = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data: mostUsed });
 });
 
-const resetTodayOperationalData = asyncHandler(async (req, res) => {
-  const data = await reportService.resetTodayOperationalData({
-    confirm: req.body?.confirm
+const getShiftCloseReport = asyncHandler(async (req, res) => {
+  const data = await reportService.getShiftCloseReport({
+    date: req.query.date
   });
 
   res.status(200).json({ success: true, data });
 });
 
-const resetAllOperationalData = asyncHandler(async (req, res) => {
-  const data = await reportService.resetAllOperationalData({
+const getMonitoring = asyncHandler(async (req, res) => {
+  const data = await reportService.getMonitoringOverview();
+  res.status(200).json({ success: true, data });
+});
+
+const resetTodayOperationalData = asyncHandler(async (req, res) => {
+  const data = await reportService.resetTodayOperationalData({
     confirm: req.body?.confirm
   });
 
@@ -64,6 +69,7 @@ module.exports = {
   getMedicineUsageHistory,
   getCurrentStock,
   getMostUsedMedicines,
-  resetTodayOperationalData,
-  resetAllOperationalData
+  getShiftCloseReport,
+  getMonitoring,
+  resetTodayOperationalData
 };

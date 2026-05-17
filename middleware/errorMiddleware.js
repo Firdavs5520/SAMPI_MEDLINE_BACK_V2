@@ -1,4 +1,5 @@
 const AppError = require("../utils/AppError");
+const { record5xxEvent } = require("../services/monitoringService");
 
 const notFound = (req, res, next) => {
   next(new AppError(`Sahifa topilmadi: ${req.originalUrl}`, 404));
@@ -23,6 +24,14 @@ const errorHandler = (err, req, res, next) => {
   if (err.name === "CastError") {
     statusCode = 400;
     message = `${err.path} maydoni uchun qiymat noto'g'ri: ${err.value}`;
+  }
+
+  if (statusCode >= 500) {
+    record5xxEvent({
+      req,
+      statusCode,
+      message
+    }).catch(() => {});
   }
 
   res.status(statusCode).json({
