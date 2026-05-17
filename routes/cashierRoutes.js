@@ -14,6 +14,5 @@ router.get("/specialists", cashierController.getSpecialists);
 router.post("/specialists", allowRoles("cashier"), cashierController.createSpecialist);
 router.post("/entries", allowRoles("cashier"), cashierController.createEntry);
 router.patch("/entries/:id", allowRoles("cashier"), cashierController.updateEntry);
-router.post("/entries/:id/payments", allowRoles("cashier"), cashierController.payDebt);
 
 module.exports = router;

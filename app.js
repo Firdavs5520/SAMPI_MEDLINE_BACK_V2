@@ -7,7 +7,6 @@ const serviceRoutes = require("./routes/serviceRoutes");
 const usageRoutes = require("./routes/usageRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const cashierRoutes = require("./routes/cashierRoutes");
-const { getHealthPayload } = require("./services/monitoringService");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
@@ -53,7 +52,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 app.get("/health", (req, res) => {
-  res.status(200).json(getHealthPayload());
+  res.status(200).json({ success: true, message: "Sampi Medline API ishlayapti" });
 });
 
 app.use("/api/auth", authRoutes);

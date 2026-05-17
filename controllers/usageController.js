@@ -2,8 +2,6 @@ const asyncHandler = require("../utils/asyncHandler");
 const usageService = require("../services/usageService");
 
 const toNumber = (value) => (typeof value === "string" ? Number(value) : value);
-const getIdempotencyKey = (req) =>
-  req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || req.body.idempotencyKey;
 
 const useMedicine = asyncHandler(async (req, res) => {
   const result = await usageService.useMedicine({
@@ -69,7 +67,6 @@ const createCheckout = asyncHandler(async (req, res) => {
     patient: req.body.patient,
     specialistId: req.body.specialistId,
     specialistName: req.body.specialistName,
-    idempotencyKey: getIdempotencyKey(req),
     user: req.user
   });
 
@@ -94,7 +91,6 @@ const createLorCheckout = asyncHandler(async (req, res) => {
     lorIdentity: req.body.lorIdentity,
     specialistId: req.body.specialistId,
     specialistName: req.body.specialistName,
-    idempotencyKey: getIdempotencyKey(req),
     user: req.user
   });
 

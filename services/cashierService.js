@@ -197,116 +197,6 @@ const resolvePaidAndDebt = (amount, paidInput) => {
   return { paidAmount, debtAmount };
 };
 
-const parseSearchDateRange = (value) => {
-  const safe = String(value || "").trim();
-  if (!safe) return null;
-
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(safe);
-  const dotted = /^(\d{2})[./-](\d{2})[./-](\d{4})$/.exec(safe);
-  let year;
-  let month;
-  let day;
-
-  if (iso) {
-    year = Number(iso[1]);
-    month = Number(iso[2]);
-    day = Number(iso[3]);
-  } else if (dotted) {
-    day = Number(dotted[1]);
-    month = Number(dotted[2]);
-    year = Number(dotted[3]);
-  } else {
-    return null;
-  }
-
-  if (
-    !Number.isInteger(year) ||
-    !Number.isInteger(month) ||
-    !Number.isInteger(day) ||
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > 31
-  ) {
-    return null;
-  }
-
-  const start = toUtcDateFromTashkent(year, month, day, 0, 0, 0, 0);
-  const end = toUtcDateFromTashkent(year, month, day, 23, 59, 59, 999);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return null;
-  }
-
-  return { start, end };
-};
-
-const normalizeDigits = (value) => String(value || "").replace(/\D/g, "");
-
-const buildSearchCondition = (safeSearch) => {
-  if (!safeSearch) return null;
-
-  const regex = new RegExp(escapeRegex(safeSearch), "i");
-  const orConditions = [
-    { patientName: regex },
-    { specialistName: regex },
-    { patientPhone: regex },
-    { note: regex },
-    { checkCode: regex }
-  ];
-
-  const parsedDateRange = parseSearchDateRange(safeSearch);
-  if (parsedDateRange) {
-    orConditions.push({
-      entryDate: { $gte: parsedDateRange.start, $lte: parsedDateRange.end }
-    });
-  }
-
-  const numeric = Number(safeSearch.replace(/[^\d.-]/g, ""));
-  if (Number.isFinite(numeric) && numeric >= 0) {
-    orConditions.push({ amount: numeric });
-    orConditions.push({ paidAmount: numeric });
-    orConditions.push({ debtAmount: numeric });
-  }
-
-  const digits = normalizeDigits(safeSearch);
-  if (digits.length >= 4) {
-    orConditions.push({ patientPhone: { $regex: digits } });
-  }
-
-  const lowered = safeSearch.toLowerCase();
-  if (["qarz", "qarzdor", "debt"].includes(lowered)) {
-    orConditions.push({ debtAmount: { $gt: 0 } });
-  }
-  if (["tolangan", "to'langan", "paid", "yopilgan"].includes(lowered)) {
-    orConditions.push({ debtAmount: { $lte: 0 } });
-  }
-
-  return { $or: orConditions };
-};
-
-const createDebtPaymentRecord = ({
-  amount,
-  previousDebtAmount,
-  remainingDebtAmount,
-  paidTotalAfterPayment,
-  paymentMethod,
-  note = "",
-  user
-}) => ({
-  amount: Number(amount.toFixed(2)),
-  previousDebtAmount: Number(previousDebtAmount.toFixed(2)),
-  remainingDebtAmount: Number(remainingDebtAmount.toFixed(2)),
-  paidTotalAfterPayment: Number(paidTotalAfterPayment.toFixed(2)),
-  paymentMethod,
-  note: String(note || "").trim(),
-  paidBy: {
-    userId: user._id,
-    role: user.role,
-    name: user.name
-  },
-  paidAt: new Date()
-});
-
 const assertCashierReadPermission = (user) => {
   if (!user || !["cashier", "manager"].includes(user.role)) {
     throw new AppError("Bu rol uchun ruxsat yo'q", 403);
@@ -378,10 +268,15 @@ const buildListFilter = ({
   }
 
   if (safeSearch) {
-    const searchCondition = buildSearchCondition(safeSearch);
-    if (searchCondition) {
-      andConditions.push(searchCondition);
-    }
+    const regex = new RegExp(escapeRegex(safeSearch), "i");
+    andConditions.push({
+      $or: [
+        { patientName: regex },
+        { specialistName: regex },
+        { patientPhone: regex },
+        { note: regex }
+      ]
+    });
   }
 
   const filter =
@@ -502,29 +397,10 @@ const createEntryFromCheck = async ({ payload, user }) => {
     specialistName
   });
 
-  const debtPayments =
-    paidAmount > 0
-      ? [
-          createDebtPaymentRecord({
-            amount: paidAmount,
-            previousDebtAmount: amount,
-            remainingDebtAmount: debtAmount,
-            paidTotalAfterPayment: paidAmount,
-            paymentMethod,
-            note: "Dastlabki kassadagi qabul to'lovi",
-            user
-          })
-        ]
-      : [];
-
   return CashierEntry.create({
     source: "check",
     checkRef: check._id,
     checkCode: String(check.checkId || "").trim(),
-    checkCreatorRole: creatorRole,
-    checkCreatorName: specialistName,
-    checkLorIdentity: check?.createdBy?.lorIdentity || null,
-    checkCreatedAt: check?.createdAt || null,
     department: creatorRole,
     patientName,
     amount,
@@ -534,7 +410,6 @@ const createEntryFromCheck = async ({ payload, user }) => {
     specialistType: creatorRole,
     specialistName,
     ...(specialistId ? { specialistId } : {}),
-    debtPayments,
     patientPhone: String(payload.patientPhone || "").trim(),
     note: String(payload.note || "").trim(),
     entryDate: new Date(),
@@ -557,9 +432,6 @@ const getPendingChecks = async ({ user, role = "all", search = "" }) => {
 
   if (safeSearch) {
     const regex = new RegExp(escapeRegex(safeSearch), "i");
-    const parsedDateRange = parseSearchDateRange(safeSearch);
-    const numeric = Number(safeSearch.replace(/[^\d.-]/g, ""));
-
     filter.$or = [
       { checkId: regex },
       { "patient.fullName": regex },
@@ -567,16 +439,6 @@ const getPendingChecks = async ({ user, role = "all", search = "" }) => {
       { "patient.lastName": regex },
       { "createdBy.name": regex }
     ];
-
-    if (parsedDateRange) {
-      filter.$or.push({
-        createdAt: { $gte: parsedDateRange.start, $lte: parsedDateRange.end }
-      });
-    }
-
-    if (Number.isFinite(numeric) && numeric >= 0) {
-      filter.$or.push({ total: numeric });
-    }
   }
 
   const checks = await Check.find(filter).sort({ createdAt: -1 }).lean();
@@ -949,66 +811,6 @@ const updateEntry = async ({ entryId, payload, user }) => {
   return entry;
 };
 
-const payDebt = async ({ entryId, payload, user }) => {
-  assertCashierWritePermission(user);
-
-  const entry = await CashierEntry.findById(entryId);
-  if (!entry) {
-    throw new AppError("Kassa yozuvi topilmadi", 404);
-  }
-
-  const previousDebtAmount = Number(entry.debtAmount || 0);
-  if (previousDebtAmount <= 0) {
-    throw new AppError("Bu yozuvda yopiladigan qarz qolmagan", 400);
-  }
-
-  const rawAmount =
-    payload?.amount !== undefined && payload?.amount !== null && payload?.amount !== ""
-      ? payload.amount
-      : previousDebtAmount;
-  const amount = Number(String(rawAmount).replace(/[^\d.-]/g, ""));
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw new AppError("Qarz to'lovi 0 dan katta bo'lishi kerak", 400);
-  }
-
-  if (amount > previousDebtAmount) {
-    throw new AppError("Qarz to'lovi qolgan qarzdan oshmasligi kerak", 400);
-  }
-
-  const paymentMethod =
-    payload?.paymentMethod !== undefined
-      ? normalizePaymentMethod(payload.paymentMethod)
-      : normalizePaymentMethod(entry.paymentMethod || "cash");
-
-  const newPaidAmount = Number((Number(entry.paidAmount || 0) + amount).toFixed(2));
-  const remainingDebtAmount = Number((previousDebtAmount - amount).toFixed(2));
-  const note = String(payload?.note || "").trim();
-
-  entry.paidAmount = newPaidAmount;
-  entry.debtAmount = remainingDebtAmount;
-  entry.paymentMethod = paymentMethod;
-  entry.debtPayments = [
-    ...(Array.isArray(entry.debtPayments) ? entry.debtPayments : []),
-    createDebtPaymentRecord({
-      amount,
-      previousDebtAmount,
-      remainingDebtAmount,
-      paidTotalAfterPayment: newPaidAmount,
-      paymentMethod,
-      note,
-      user
-    })
-  ];
-
-  if (payload?.patientPhone !== undefined) {
-    entry.patientPhone = String(payload.patientPhone || "").trim();
-  }
-
-  await entry.save();
-  return entry;
-};
-
 const deleteEntry = async ({ entryId, user }) => {
   assertCashierWritePermission(user);
 
@@ -1030,6 +832,5 @@ module.exports = {
   deleteSpecialist,
   createEntry,
   updateEntry,
-  payDebt,
   deleteEntry
 };

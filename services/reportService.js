@@ -3,14 +3,13 @@ const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const CashierEntry = require("../models/CashierEntry");
-const { getMonitoringOverview } = require("./monitoringService");
+const Service = require("../models/Service");
+const CashierSpecialist = require("../models/CashierSpecialist");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
 const STAFF_ROLES = ["nurse", "lor"];
 const TASHKENT_OFFSET_HOURS = 5;
 const TASHKENT_OFFSET_MS = TASHKENT_OFFSET_HOURS * 60 * 60 * 1000;
-const SHIFT_START_HOUR = 8;
-const SHIFT_END_HOUR = 2;
 
 const getNowInTashkent = (nowUtc = new Date()) => new Date(nowUtc.getTime() + TASHKENT_OFFSET_MS);
 const toUtcFromTashkentDate = (dateInTashkentTime) =>
@@ -28,69 +27,6 @@ const getTashkentDayStart = (dateInTashkentTime) =>
       0
     )
   );
-
-const normalizeDateString = (value) => {
-  const safe = String(value || "").trim();
-  if (!safe) return getNowInTashkent(new Date()).toISOString().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(safe)) {
-    throw new AppError("Sana YYYY-MM-DD formatida bo'lishi kerak", 400);
-  }
-  return safe;
-};
-
-const parseDateParts = (dateString) => {
-  const [yearPart, monthPart, dayPart] = String(dateString).split("-");
-  const year = Number(yearPart);
-  const month = Number(monthPart);
-  const day = Number(dayPart);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    throw new AppError("Sana noto'g'ri", 400);
-  }
-  return { year, month, day };
-};
-
-const toUtcDateFromTashkent = (
-  year,
-  month,
-  day,
-  hour = 0,
-  minute = 0,
-  second = 0,
-  ms = 0
-) =>
-  new Date(
-    Date.UTC(
-      year,
-      month - 1,
-      day,
-      hour - TASHKENT_OFFSET_HOURS,
-      minute,
-      second,
-      ms
-    )
-  );
-
-const getShiftRange = (dateString) => {
-  const safeDateString = normalizeDateString(dateString);
-  const { year, month, day } = parseDateParts(safeDateString);
-  const start = toUtcDateFromTashkent(year, month, day, SHIFT_START_HOUR, 0, 0, 0);
-  const shiftEndsNextDay = SHIFT_END_HOUR <= SHIFT_START_HOUR;
-  const endBoundary = toUtcDateFromTashkent(
-    year,
-    month,
-    shiftEndsNextDay ? day + 1 : day,
-    SHIFT_END_HOUR,
-    0,
-    0,
-    0
-  );
-
-  return {
-    safeDateString,
-    start,
-    end: new Date(endBoundary.getTime() - 1)
-  };
-};
 
 const getAllChecks = async () => {
   return Check.find().sort({ createdAt: -1 });
@@ -359,118 +295,6 @@ const getMostUsedMedicines = async (limit = 10) => {
   ]);
 };
 
-const getShiftCloseReport = async ({ date } = {}) => {
-  const { safeDateString, start, end } = getShiftRange(date);
-
-  const [summary] = await CashierEntry.aggregate([
-    {
-      $match: {
-        entryDate: { $gte: start, $lte: end }
-      }
-    },
-    {
-      $facet: {
-        overall: [
-          {
-            $group: {
-              _id: null,
-              totalAmount: { $sum: "$amount" },
-              totalPaidAmount: { $sum: "$paidAmount" },
-              totalDebtAmount: { $sum: "$debtAmount" },
-              entriesCount: { $sum: 1 }
-            }
-          }
-        ],
-        byPaymentMethod: [
-          {
-            $group: {
-              _id: "$paymentMethod",
-              totalAmount: { $sum: "$amount" },
-              totalPaidAmount: { $sum: "$paidAmount" },
-              totalDebtAmount: { $sum: "$debtAmount" },
-              entriesCount: { $sum: 1 }
-            }
-          },
-          { $sort: { _id: 1 } }
-        ],
-        byDepartment: [
-          {
-            $group: {
-              _id: "$department",
-              totalAmount: { $sum: "$amount" },
-              totalPaidAmount: { $sum: "$paidAmount" },
-              totalDebtAmount: { $sum: "$debtAmount" },
-              entriesCount: { $sum: 1 }
-            }
-          },
-          { $sort: { _id: 1 } }
-        ],
-        topSpecialists: [
-          {
-            $group: {
-              _id: {
-                specialistName: "$specialistName",
-                specialistType: "$specialistType"
-              },
-              totalAmount: { $sum: "$amount" },
-              checksCount: { $sum: 1 }
-            }
-          },
-          { $sort: { totalAmount: -1, checksCount: -1, "_id.specialistName": 1 } },
-          { $limit: 10 },
-          {
-            $project: {
-              _id: 0,
-              specialistName: "$_id.specialistName",
-              specialistType: "$_id.specialistType",
-              totalAmount: 1,
-              checksCount: 1
-            }
-          }
-        ]
-      }
-    }
-  ]);
-
-  const overall = summary?.overall?.[0] || {
-    totalAmount: 0,
-    totalPaidAmount: 0,
-    totalDebtAmount: 0,
-    entriesCount: 0
-  };
-
-  return {
-    date: safeDateString,
-    shift: {
-      fromLabel: "08:00",
-      toLabel: "02:00",
-      start: start.toISOString(),
-      end: end.toISOString()
-    },
-    totals: {
-      totalAmount: Number(overall.totalAmount || 0),
-      totalPaidAmount: Number(overall.totalPaidAmount || 0),
-      totalDebtAmount: Number(overall.totalDebtAmount || 0),
-      entriesCount: Number(overall.entriesCount || 0)
-    },
-    byPaymentMethod: (summary?.byPaymentMethod || []).map((item) => ({
-      paymentMethod: item._id,
-      totalAmount: Number(item.totalAmount || 0),
-      totalPaidAmount: Number(item.totalPaidAmount || 0),
-      totalDebtAmount: Number(item.totalDebtAmount || 0),
-      entriesCount: Number(item.entriesCount || 0)
-    })),
-    byDepartment: (summary?.byDepartment || []).map((item) => ({
-      department: item._id,
-      totalAmount: Number(item.totalAmount || 0),
-      totalPaidAmount: Number(item.totalPaidAmount || 0),
-      totalDebtAmount: Number(item.totalDebtAmount || 0),
-      entriesCount: Number(item.entriesCount || 0)
-    })),
-    topSpecialists: summary?.topSpecialists || []
-  };
-};
-
 const getTodayRangeInTashkent = () => {
   const nowUtc = new Date();
   const nowInTashkent = getNowInTashkent(nowUtc);
@@ -494,7 +318,6 @@ const resetTodayOperationalData = async ({ confirm }) => {
   const session = await mongoose.startSession();
 
   let result = null;
-
   try {
     await session.withTransaction(async () => {
       const medUsageAgg = await MedicineUsage.aggregate([
@@ -506,8 +329,7 @@ const resetTodayOperationalData = async ({ confirm }) => {
         {
           $group: {
             _id: "$medicineId",
-            totalQty: { $sum: "$quantity" },
-            usageCount: { $sum: 1 }
+            totalQty: { $sum: "$quantity" }
           }
         }
       ]).session(session);
@@ -572,6 +394,46 @@ const resetTodayOperationalData = async ({ confirm }) => {
   return result;
 };
 
+const resetAllOperationalData = async ({ confirm }) => {
+  if (String(confirm || "").trim() !== "RESET_ALL") {
+    throw new AppError("Tasdiqlash uchun confirm=RESET_ALL yuboring", 400);
+  }
+
+  const session = await mongoose.startSession();
+  let result = null;
+
+  try {
+    await session.withTransaction(async () => {
+      const medUsageDelete = await MedicineUsage.deleteMany({}, { session });
+      const serviceUsageDelete = await ServiceUsage.deleteMany({}, { session });
+      const cashierEntriesDelete = await CashierEntry.deleteMany({}, { session });
+      const specialistsDelete = await CashierSpecialist.deleteMany({}, { session });
+      const servicesDelete = await Service.deleteMany({}, { session });
+      const medicinesDelete = await Medicine.deleteMany({}, { session });
+
+      // Check model delete middleware blocks deleteMany, so use native collection API.
+      const checksDelete = await Check.collection.deleteMany({}, { session });
+
+      result = {
+        timezone: "Asia/Tashkent",
+        scope: "all_time",
+        medicineUsageDeleted: Number(medUsageDelete.deletedCount || 0),
+        serviceUsageDeleted: Number(serviceUsageDelete.deletedCount || 0),
+        cashierEntriesDeleted: Number(cashierEntriesDelete.deletedCount || 0),
+        checksDeleted: Number(checksDelete.deletedCount || 0),
+        medicinesDeleted: Number(medicinesDelete.deletedCount || 0),
+        servicesDeleted: Number(servicesDelete.deletedCount || 0),
+        specialistsDeleted: Number(specialistsDelete.deletedCount || 0),
+        usersDeleted: 0
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return result;
+};
+
 module.exports = {
   getAllChecks,
   getTotalRevenue,
@@ -579,7 +441,6 @@ module.exports = {
   getMedicineUsageHistory,
   getCurrentStock,
   getMostUsedMedicines,
-  getShiftCloseReport,
   resetTodayOperationalData,
-  getMonitoringOverview
+  resetAllOperationalData
 };
