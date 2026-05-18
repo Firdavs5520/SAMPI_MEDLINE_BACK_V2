@@ -572,6 +572,65 @@ const resetTodayOperationalData = async ({ confirm }) => {
   return result;
 };
 
+const resetAllOperationalData = async ({ confirm }) => {
+  if (String(confirm || "").trim() !== "RESET_OPERATIONAL_DATA") {
+    throw new AppError("Tasdiqlash uchun confirm=RESET_OPERATIONAL_DATA yuboring", 400);
+  }
+
+  const session = await mongoose.startSession();
+  let result = null;
+
+  try {
+    await session.withTransaction(async () => {
+      const medUsageAgg = await MedicineUsage.aggregate([
+        {
+          $group: {
+            _id: "$medicineId",
+            totalQty: { $sum: "$quantity" },
+            usageCount: { $sum: 1 }
+          }
+        }
+      ]).session(session);
+
+      const stockRestoreOps = medUsageAgg
+        .filter((row) => row?._id && Number(row.totalQty) > 0)
+        .map((row) => ({
+          updateOne: {
+            filter: { _id: row._id },
+            update: { $inc: { stock: Number(row.totalQty) } }
+          }
+        }));
+
+      let restoredMedicineStocks = 0;
+      if (stockRestoreOps.length > 0) {
+        const restoreRes = await Medicine.bulkWrite(stockRestoreOps, { session });
+        restoredMedicineStocks = Number(restoreRes.modifiedCount || 0);
+      }
+
+      const medUsageDelete = await MedicineUsage.deleteMany({}, { session });
+      const serviceUsageDelete = await ServiceUsage.deleteMany({}, { session });
+      const cashierEntriesDelete = await CashierEntry.deleteMany({}, { session });
+
+      // Check model delete middleware blocks deleteMany, so use native collection API.
+      const checksDelete = await Check.collection.deleteMany({}, { session });
+
+      result = {
+        scope: "all-operational-data",
+        preserved: ["users", "medicines", "services", "cashierSpecialists"],
+        restoredMedicineStocks,
+        medicineUsageDeleted: Number(medUsageDelete.deletedCount || 0),
+        serviceUsageDeleted: Number(serviceUsageDelete.deletedCount || 0),
+        cashierEntriesDeleted: Number(cashierEntriesDelete.deletedCount || 0),
+        checksDeleted: Number(checksDelete.deletedCount || 0)
+      };
+    });
+  } finally {
+    await session.endSession();
+  }
+
+  return result;
+};
+
 module.exports = {
   getAllChecks,
   getTotalRevenue,
@@ -581,5 +640,6 @@ module.exports = {
   getMostUsedMedicines,
   getShiftCloseReport,
   resetTodayOperationalData,
+  resetAllOperationalData,
   getMonitoringOverview
 };

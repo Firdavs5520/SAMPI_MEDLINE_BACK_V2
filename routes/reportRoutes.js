@@ -16,5 +16,6 @@ router.get("/medicine-usage", reportController.getMedicineUsageHistory);
 router.get("/current-stock", reportController.getCurrentStock);
 router.get("/most-used-medicines", reportController.getMostUsedMedicines);
 router.post("/maintenance/reset-today", reportController.resetTodayOperationalData);
+router.post("/maintenance/reset-operational", reportController.resetAllOperationalData);
 
 module.exports = router;
