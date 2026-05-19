@@ -96,7 +96,7 @@ const getAllChecks = async () => {
   return Check.find().sort({ createdAt: -1 });
 };
 
-const resolveRevenueMatch = (period) => {
+const resolvePeriodMatch = (period, fieldName = "createdAt") => {
   const nowUtc = new Date();
   const nowInTashkent = getNowInTashkent(nowUtc);
   const safePeriod = String(period || "all").toLowerCase();
@@ -104,14 +104,14 @@ const resolveRevenueMatch = (period) => {
   if (safePeriod === "today") {
     const dayStartInTashkent = getTashkentDayStart(nowInTashkent);
     const startUtc = toUtcFromTashkentDate(dayStartInTashkent);
-    return { createdAt: { $gte: startUtc, $lte: nowUtc } };
+    return { [fieldName]: { $gte: startUtc, $lte: nowUtc } };
   }
 
   if (safePeriod === "week") {
     const weekStartInTashkent = getTashkentDayStart(nowInTashkent);
     weekStartInTashkent.setUTCDate(weekStartInTashkent.getUTCDate() - 6);
     const startUtc = toUtcFromTashkentDate(weekStartInTashkent);
-    return { createdAt: { $gte: startUtc, $lte: nowUtc } };
+    return { [fieldName]: { $gte: startUtc, $lte: nowUtc } };
   }
 
   if (safePeriod === "month") {
@@ -119,29 +119,24 @@ const resolveRevenueMatch = (period) => {
     monthStartInTashkent.setUTCMonth(monthStartInTashkent.getUTCMonth() - 1);
     monthStartInTashkent.setUTCHours(0, 0, 0, 0);
     const startUtc = toUtcFromTashkentDate(monthStartInTashkent);
-    return { createdAt: { $gte: startUtc, $lte: nowUtc } };
+    return { [fieldName]: { $gte: startUtc, $lte: nowUtc } };
   }
 
   return {};
 };
 
 const getTotalRevenue = async ({ period = "all" } = {}) => {
-  const match = resolveRevenueMatch(period);
-  const pipeline = [];
-
-  if (Object.keys(match).length > 0) {
-    pipeline.push({ $match: match });
-  }
-
-  pipeline.push({
-    $group: {
-      _id: null,
-      totalRevenue: { $sum: "$total" },
-      checksCount: { $sum: 1 }
+  const match = resolvePeriodMatch(period, "entryDate");
+  const [result] = await CashierEntry.aggregate([
+    ...(Object.keys(match).length > 0 ? [{ $match: match }] : []),
+    {
+      $group: {
+        _id: null,
+        totalRevenue: { $sum: "$paidAmount" },
+        checksCount: { $sum: 1 }
+      }
     }
-  });
-
-  const [result] = await Check.aggregate(pipeline);
+  ]);
 
   return {
     totalRevenue: result?.totalRevenue || 0,
@@ -150,27 +145,43 @@ const getTotalRevenue = async ({ period = "all" } = {}) => {
   };
 };
 
-const mergeMatch = (periodMatch, role) => {
-  const match = {
-    ...periodMatch
-  };
-
-  if (role) {
-    match["createdBy.role"] = role;
-  } else {
-    match["createdBy.role"] = { $in: STAFF_ROLES };
-  }
-
-  return match;
+const effectiveCashierRoleExpression = {
+  $cond: [
+    { $in: ["$checkCreatorRole", STAFF_ROLES] },
+    "$checkCreatorRole",
+    {
+      $cond: [
+        { $in: ["$specialistType", STAFF_ROLES] },
+        "$specialistType",
+        {
+          $cond: [{ $eq: ["$department", "procedure"] }, "nurse", "$department"]
+        }
+      ]
+    }
+  ]
 };
 
-const aggregateRevenueAndChecks = async (match) => {
-  const [result] = await Check.aggregate([
-    { $match: match },
+const buildCashierRoleStages = (periodMatch, role) => [
+  ...(Object.keys(periodMatch).length > 0 ? [{ $match: periodMatch }] : []),
+  {
+    $addFields: {
+      effectiveRole: effectiveCashierRoleExpression
+    }
+  },
+  {
+    $match: {
+      effectiveRole: role || { $in: STAFF_ROLES }
+    }
+  }
+];
+
+const aggregateRevenueAndChecks = async (periodMatch, role) => {
+  const [result] = await CashierEntry.aggregate([
+    ...buildCashierRoleStages(periodMatch, role),
     {
       $group: {
         _id: null,
-        totalRevenue: { $sum: "$total" },
+        totalRevenue: { $sum: "$paidAmount" },
         checksCount: { $sum: 1 }
       }
     }
@@ -182,20 +193,30 @@ const aggregateRevenueAndChecks = async (match) => {
   };
 };
 
-const aggregateTopItem = async (match) => {
-  const [topItem] = await Check.aggregate([
-    { $match: match },
-    { $unwind: "$items" },
+const aggregateTopItem = async (periodMatch, role) => {
+  const [topItem] = await CashierEntry.aggregate([
+    ...buildCashierRoleStages(periodMatch, role),
+    { $match: { checkRef: { $ne: null } } },
+    {
+      $lookup: {
+        from: "checks",
+        localField: "checkRef",
+        foreignField: "_id",
+        as: "check"
+      }
+    },
+    { $unwind: "$check" },
+    { $unwind: "$check.items" },
     {
       $group: {
         _id: {
-          itemType: "$items.itemType",
-          name: "$items.name"
+          itemType: "$check.items.itemType",
+          name: "$check.items.name"
         },
-        totalQuantity: { $sum: "$items.quantity" },
+        totalQuantity: { $sum: "$check.items.quantity" },
         checksCount: { $sum: 1 },
         totalRevenue: {
-          $sum: { $multiply: ["$items.quantity", "$items.price"] }
+          $sum: { $multiply: ["$check.items.quantity", "$check.items.price"] }
         }
       }
     },
@@ -217,12 +238,22 @@ const aggregateTopItem = async (match) => {
   return topItem;
 };
 
-const aggregateMedicineTypesFromChecks = async (match) => {
-  const [result] = await Check.aggregate([
-    { $match: match },
-    { $unwind: "$items" },
-    { $match: { "items.itemType": "medicine" } },
-    { $group: { _id: "$items.name" } },
+const aggregateMedicineTypesFromChecks = async (periodMatch, role) => {
+  const [result] = await CashierEntry.aggregate([
+    ...buildCashierRoleStages(periodMatch, role),
+    { $match: { checkRef: { $ne: null } } },
+    {
+      $lookup: {
+        from: "checks",
+        localField: "checkRef",
+        foreignField: "_id",
+        as: "check"
+      }
+    },
+    { $unwind: "$check" },
+    { $unwind: "$check.items" },
+    { $match: { "check.items.itemType": "medicine" } },
+    { $group: { _id: "$check.items.name" } },
     { $count: "count" }
   ]);
 
@@ -230,17 +261,12 @@ const aggregateMedicineTypesFromChecks = async (match) => {
 };
 
 const aggregateLorIdentityStats = async (periodMatch) => {
-  const groupedRows = await Check.aggregate([
-    {
-      $match: {
-        ...periodMatch,
-        "createdBy.role": "lor"
-      }
-    },
+  const groupedRows = await CashierEntry.aggregate([
+    ...buildCashierRoleStages(periodMatch, "lor"),
     {
       $group: {
-        _id: "$createdBy.lorIdentity",
-        totalRevenue: { $sum: "$total" },
+        _id: "$checkLorIdentity",
+        totalRevenue: { $sum: "$paidAmount" },
         checksCount: { $sum: 1 }
       }
     }
@@ -265,12 +291,10 @@ const aggregateLorIdentityStats = async (periodMatch) => {
 };
 
 const buildRoleOverview = async (periodMatch, role) => {
-  const match = mergeMatch(periodMatch, role);
-
   const [summary, topItem, medicineTypesCount] = await Promise.all([
-    aggregateRevenueAndChecks(match),
-    aggregateTopItem(match),
-    aggregateMedicineTypesFromChecks(match)
+    aggregateRevenueAndChecks(periodMatch, role),
+    aggregateTopItem(periodMatch, role),
+    aggregateMedicineTypesFromChecks(periodMatch, role)
   ]);
 
   return {
@@ -282,7 +306,7 @@ const buildRoleOverview = async (periodMatch, role) => {
 
 const getManagerOverview = async ({ period = "all" } = {}) => {
   const safePeriod = String(period || "all").toLowerCase();
-  const periodMatch = resolveRevenueMatch(safePeriod);
+  const periodMatch = resolvePeriodMatch(safePeriod, "entryDate");
 
   const [inventoryMedicineTypes, nurse, lor, total, lorIdentities] = await Promise.all([
     Medicine.countDocuments({ isArchived: { $ne: true } }),

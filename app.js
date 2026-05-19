@@ -18,11 +18,21 @@ const normalizeOrigin = (value) =>
     .replace(/\/+$/, "")
     .toLowerCase();
 
-const defaultOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const defaultOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://sampi-medline.vercel.app"
+];
 const envOrigins = process.env.CLIENT_ORIGIN
   ? process.env.CLIENT_ORIGIN.split(",").map((item) => item.trim())
   : [];
-const allowVercelOrigins = String(process.env.ALLOW_VERCEL_ORIGINS || "true") !== "false";
+const envVercelOrigins = process.env.VERCEL_ALLOWED_ORIGINS
+  ? process.env.VERCEL_ALLOWED_ORIGINS.split(",").map((item) => item.trim())
+  : [];
+const allowVercelOrigins = String(process.env.ALLOW_VERCEL_ORIGINS || "false") === "true";
+const allowedVercelOrigins = new Set(
+  envVercelOrigins.map(normalizeOrigin).filter(Boolean)
+);
 const allowedOrigins = new Set(
   [...defaultOrigins, ...envOrigins].map(normalizeOrigin).filter(Boolean)
 );
@@ -36,8 +46,7 @@ app.use(
       }
 
       const normalizedOrigin = normalizeOrigin(origin);
-      const isVercelOrigin =
-        allowVercelOrigins && normalizedOrigin.startsWith("https://") && normalizedOrigin.endsWith(".vercel.app");
+      const isVercelOrigin = allowVercelOrigins && allowedVercelOrigins.has(normalizedOrigin);
 
       if (allowedOrigins.has(normalizedOrigin) || isVercelOrigin) {
         callback(null, true);

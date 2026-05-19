@@ -497,10 +497,13 @@ const createEntryFromCheck = async ({ payload, user }) => {
     throw new AppError("Chek yaratuvchisi ma'lumoti topilmadi", 400);
   }
 
-  const specialistId = await tryResolveSpecialistId({
-    specialistType: creatorRole,
-    specialistName
-  });
+  const checkSpecialistId = check?.createdBy?.specialistId;
+  const specialistId = isValidObjectId(checkSpecialistId)
+    ? checkSpecialistId
+    : await tryResolveSpecialistId({
+        specialistType: creatorRole,
+        specialistName
+      });
 
   const debtPayments =
     paidAmount > 0

@@ -38,7 +38,9 @@ const getMyChecks = asyncHandler(async (req, res) => {
   const checks = await usageService.getMyChecks({
     user: req.user,
     search: req.query.q,
-    lorIdentity: req.query.lorIdentity
+    lorIdentity: req.query.lorIdentity,
+    specialistId: req.query.specialistId,
+    specialistName: req.query.specialistName
   });
 
   res.status(200).json({

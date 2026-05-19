@@ -103,6 +103,11 @@ const checkSchema = new mongoose.Schema(
         type: String,
         enum: ["lor1", "lor2"],
         immutable: true
+      },
+      specialistId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "CashierSpecialist",
+        immutable: true
       }
     },
     createdAt: {

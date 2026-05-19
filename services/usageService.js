@@ -259,6 +259,10 @@ const buildCreatedByPayload = (user, options = {}) => {
     name: displayName || user.name
   };
 
+  if (options.specialistId) {
+    payload.specialistId = options.specialistId;
+  }
+
   if (user.role === "lor" && options.lorIdentity) {
     payload.lorIdentity = options.lorIdentity;
     if (!displayName) {
@@ -487,7 +491,13 @@ const useService = async ({
   }
 };
 
-const getMyChecks = async ({ user, search = "", lorIdentity }) => {
+const getMyChecks = async ({
+  user,
+  search = "",
+  lorIdentity,
+  specialistId,
+  specialistName
+}) => {
   if (!user) {
     throw new AppError("Foydalanuvchi majburiy", 401);
   }
@@ -498,6 +508,33 @@ const getMyChecks = async ({ user, search = "", lorIdentity }) => {
 
   if (user.role === "lor") {
     filter["createdBy.lorIdentity"] = normalizeLorIdentity(lorIdentity);
+
+    const safeSpecialistId = String(specialistId || "").trim();
+    const safeSpecialistName = String(specialistName || "").trim();
+    const specialistConditions = [];
+
+    if (safeSpecialistId) {
+      assertObjectId(safeSpecialistId, "Doktor ID");
+      specialistConditions.push({ "createdBy.specialistId": safeSpecialistId });
+    }
+
+    if (safeSpecialistName) {
+      specialistConditions.push({
+        "createdBy.name": {
+          $regex: `^${escapeRegex(safeSpecialistName)}$`,
+          $options: "i"
+        }
+      });
+    }
+
+    if (specialistConditions.length > 0) {
+      filter.$and = [
+        ...(filter.$and || []),
+        {
+          $or: specialistConditions
+        }
+      ];
+    }
   }
 
   const safeSearch = String(search || "").trim();
@@ -670,6 +707,31 @@ const updateRoleSpecialist = async ({ specialistId, name, user }) => {
 
 const deleteRoleSpecialist = async ({ specialistId, user }) => {
   const specialist = await getRoleSpecialistById({ specialistId, user });
+  const specialistName = String(specialist.name || "").trim();
+  const usageCount = await Check.countDocuments({
+    "createdBy.role": specialist.type,
+    $or: [
+      { "createdBy.specialistId": specialist._id },
+      ...(specialistName ? [{ "createdBy.name": specialistName }] : [])
+    ]
+  });
+
+  if (usageCount > 0) {
+    throw new AppError("Bu mutaxassis chek tarixida ishlatilgan, o'chirib bo'lmaydi", 400);
+  }
+
+  const cashierEntryCount = await CashierEntry.countDocuments({
+    specialistType: specialist.type,
+    $or: [
+      { specialistId: specialist._id },
+      ...(specialistName ? [{ specialistName }] : [])
+    ]
+  });
+
+  if (cashierEntryCount > 0) {
+    throw new AppError("Bu mutaxassis kassa tarixida ishlatilgan, o'chirib bo'lmaydi", 400);
+  }
+
   await CashierSpecialist.deleteOne({ _id: specialist._id });
   return {
     deleted: true,
@@ -873,7 +935,8 @@ const createNurseCheckout = async ({
           total: Number(total.toFixed(2)),
           patient: normalizedPatient,
           createdBy: buildCreatedByPayload(user, {
-            displayName: specialist.specialistName
+            displayName: specialist.specialistName,
+            specialistId: specialist.specialistId
           })
         }
       ],
@@ -1014,7 +1077,8 @@ const createLorCheckout = async ({
           patient: normalizedPatient,
           createdBy: buildCreatedByPayload(user, {
             lorIdentity: normalizedLorIdentity,
-            displayName: specialist.specialistName
+            displayName: specialist.specialistName,
+            specialistId: specialist.specialistId
           })
         }
       ],
