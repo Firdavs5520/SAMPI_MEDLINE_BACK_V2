@@ -31,7 +31,7 @@ const exportMonthlyReport = asyncHandler(async (req, res) => {
     month: req.query.month
   });
   const buffer = await workbook.xlsx.writeBuffer();
-  const filename = `sampi-reporter-${report.month}.xlsx`;
+  const filename = `sampi-reporter-${report.year}.xlsx`;
 
   res.setHeader(
     "Content-Type",

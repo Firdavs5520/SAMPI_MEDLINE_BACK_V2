@@ -26,6 +26,44 @@ const AMOUNT_LABELS = {
   debtAmount: "Qarz"
 };
 
+const MONTH_LABELS = [
+  "Yanvar",
+  "Fevral",
+  "Mart",
+  "Aprel",
+  "May",
+  "Iyun",
+  "Iyul",
+  "Avgust",
+  "Sentabr",
+  "Oktabr",
+  "Noyabr",
+  "Dekabr"
+];
+
+const EXCEL_TEMPLATE_COLUMNS = [
+  { header: "Kun", key: "date", width: 10 },
+  { header: "Lor soni", key: "lorClientsCount", width: 10 },
+  { header: "Lor summa", key: "lorPaidAmount", width: 14 },
+  { header: "50%", key: "lorHalfPaidAmount", width: 14 },
+  { header: "Protsedura soni", key: "procedureCount", width: 16 },
+  { header: "Protsedura summa", key: "procedurePaidAmount", width: 18 },
+  { header: "50% + Protsedura summa", key: "autoIncomeTotal", width: 24 },
+  { header: "Kunlik xarajat", key: "expenseAmount", width: 15 },
+  { header: "Dori", key: "medicineAmount", width: 13 },
+  { header: "Ta'minot", key: "supplyAmount", width: 13 },
+  { header: "Kanstovar", key: "stationeryAmount", width: 13 },
+  { header: "Aloqa", key: "communicationAmount", width: 13 },
+  { header: "Farzandlarga", key: "childrenAmount", width: 15 },
+  { header: "Uy uchun", key: "homeAmount", width: 13 },
+  { header: "Boshliq uchun", key: "bossAmount", width: 16 },
+  { header: "Terminal summa", key: "terminalAmount", width: 16 },
+  { header: "O'tkazilgan", key: "transferAmount", width: 16 },
+  { header: "Qarz", key: "debtAmount", width: 12 },
+  { header: "Jami harajat", key: "expenseTotal", width: 15 },
+  { header: "Click", key: "clickAmount", width: 13 }
+];
+
 const emptyCashierStats = () => ({
   count: 0,
   totalAmount: 0,
@@ -387,103 +425,233 @@ const setNumberFormat = (worksheet, indexes) => {
   }
 };
 
+const blankIfZero = (value) => {
+  const number = Number(value || 0);
+  return number > 0 ? number : null;
+};
+
+const sumValues = (...values) =>
+  values.reduce((total, value) => total + Number(value || 0), 0);
+
+const parseDateKeyToExcelDate = (dateKey) => {
+  const { year, month, day } = parseDateParts(dateKey);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
+  const headerFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+  const darkRowFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB4C6E7" } };
+  const lightRowFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
+  const dateFill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF5B9BD5" } };
+  const border = {
+    top: { style: "thin", color: { argb: "FFFFFFFF" } },
+    left: { style: "thin", color: { argb: "FFFFFFFF" } },
+    bottom: { style: "thin", color: { argb: "FFFFFFFF" } },
+    right: { style: "thin", color: { argb: "FFFFFFFF" } }
+  };
+
+  sheet.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
+  sheet.autoFilter = "A1:T1";
+  sheet.properties.defaultRowHeight = 18;
+
+  const headerRow = sheet.getRow(1);
+  headerRow.height = 22;
+  headerRow.eachCell({ includeEmpty: true }, (cell) => {
+    cell.fill = headerFill;
+    cell.font = { bold: true, name: "Calibri", size: 11, color: { argb: "FF000000" } };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.border = border;
+  });
+
+  for (let rowNumber = 2; rowNumber < totalRowNumber; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const fill = rowNumber % 2 === 0 ? lightRowFill : darkRowFill;
+    row.eachCell({ includeEmpty: true }, (cell, columnNumber) => {
+      cell.fill = columnNumber === 1 ? dateFill : fill;
+      cell.font = {
+        bold: columnNumber === 1,
+        name: "Calibri",
+        size: 11,
+        color: { argb: "FF000000" }
+      };
+      cell.alignment = {
+        horizontal: columnNumber === 1 ? "center" : "right",
+        vertical: "middle"
+      };
+      cell.border = border;
+    });
+  }
+
+  const totalRow = sheet.getRow(totalRowNumber);
+  totalRow.height = 20;
+  totalRow.eachCell({ includeEmpty: true }, (cell) => {
+    cell.fill = headerFill;
+    cell.font = { bold: true, name: "Calibri", size: 11, color: { argb: "FF000000" } };
+    cell.alignment = { horizontal: "right", vertical: "middle" };
+    cell.border = border;
+  });
+  sheet.getCell(`A${totalRowNumber}`).alignment = {
+    horizontal: "left",
+    vertical: "middle"
+  };
+
+  sheet.getColumn(1).numFmt = "dd.mm.yy";
+  sheet.getColumn(1).alignment = { horizontal: "center", vertical: "middle" };
+  setNumberFormat(sheet, Array.from({ length: 19 }, (_, index) => index + 2));
+};
+
+const addTemplateMonthSheet = (workbook, report, monthNumber) => {
+  const sheetName = MONTH_LABELS[monthNumber - 1] || report.month;
+  const sheet = workbook.addWorksheet(sheetName);
+
+  sheet.columns = EXCEL_TEMPLATE_COLUMNS.map((column) => ({
+    header: column.header,
+    key: column.key,
+    width: column.width
+  }));
+
+  report.rows.forEach((row, index) => {
+    const excelRowNumber = index + 2;
+    const lorPaidAmount = row.cashier.lor.paidAmount;
+    const lorHalfPaidAmount = row.cashier.lor.halfPaidAmount;
+    const procedurePaidAmount = row.cashier.procedure.paidAmount;
+    const autoIncomeTotal = lorHalfPaidAmount + procedurePaidAmount;
+    const expenseTotal = sumValues(
+      row.manual.expenseAmount,
+      row.manual.medicineAmount,
+      row.manual.supplyAmount,
+      row.manual.bossAmount,
+      row.manual.debtAmount
+    );
+
+    sheet.addRow({
+      date: parseDateKeyToExcelDate(row.date),
+      lorClientsCount: blankIfZero(row.cashier.lor.count),
+      lorPaidAmount: blankIfZero(lorPaidAmount),
+      lorHalfPaidAmount: {
+        formula: `IF(C${excelRowNumber}="","",C${excelRowNumber}/2)`,
+        result: blankIfZero(lorHalfPaidAmount)
+      },
+      procedureCount: blankIfZero(row.cashier.procedure.proceduresCount),
+      procedurePaidAmount: blankIfZero(procedurePaidAmount),
+      autoIncomeTotal: {
+        formula: `IF(AND(D${excelRowNumber}="",F${excelRowNumber}=""),"",D${excelRowNumber}+F${excelRowNumber})`,
+        result: blankIfZero(autoIncomeTotal)
+      },
+      expenseAmount: blankIfZero(row.manual.expenseAmount),
+      medicineAmount: blankIfZero(row.manual.medicineAmount),
+      supplyAmount: blankIfZero(row.manual.supplyAmount),
+      stationeryAmount: null,
+      communicationAmount: null,
+      childrenAmount: null,
+      homeAmount: null,
+      bossAmount: blankIfZero(row.manual.bossAmount),
+      terminalAmount: blankIfZero(row.manual.terminalAmount),
+      transferAmount: blankIfZero(row.manual.transferAmount),
+      debtAmount: blankIfZero(row.manual.debtAmount),
+      expenseTotal: {
+        formula: `IF(COUNTA(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber})=0,"",SUM(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber}))`,
+        result: blankIfZero(expenseTotal)
+      },
+      clickAmount: blankIfZero(row.manual.clickAmount)
+    });
+  });
+
+  const totalRowNumber = report.rows.length + 2;
+  const totalExpense = sumValues(
+    report.totals.expenseAmount,
+    report.totals.medicineAmount,
+    report.totals.supplyAmount,
+    report.totals.bossAmount,
+    report.totals.debtAmount
+  );
+  const totalRowValues = {
+    date: "Jami",
+    lorClientsCount: {
+      formula: `SUM(B2:B${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.lorClientsCount)
+    },
+    lorPaidAmount: {
+      formula: `SUM(C2:C${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.lorPaidAmount)
+    },
+    lorHalfPaidAmount: {
+      formula: `SUM(D2:D${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.lorHalfPaidAmount)
+    },
+    procedureCount: {
+      formula: `SUM(E2:E${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.procedureCount)
+    },
+    procedurePaidAmount: {
+      formula: `SUM(F2:F${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.procedurePaidAmount)
+    },
+    autoIncomeTotal: {
+      formula: `SUM(G2:G${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.autoIncomeTotal)
+    },
+    expenseAmount: {
+      formula: `SUM(H2:H${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.expenseAmount)
+    },
+    medicineAmount: {
+      formula: `SUM(I2:I${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.medicineAmount)
+    },
+    supplyAmount: {
+      formula: `SUM(J2:J${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.supplyAmount)
+    },
+    stationeryAmount: null,
+    communicationAmount: null,
+    childrenAmount: null,
+    homeAmount: null,
+    bossAmount: {
+      formula: `SUM(O2:O${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.bossAmount)
+    },
+    terminalAmount: {
+      formula: `SUM(P2:P${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.terminalAmount)
+    },
+    transferAmount: {
+      formula: `SUM(Q2:Q${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.transferAmount)
+    },
+    debtAmount: {
+      formula: `SUM(R2:R${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.debtAmount)
+    },
+    expenseTotal: {
+      formula: `SUM(S2:S${totalRowNumber - 1})`,
+      result: blankIfZero(totalExpense)
+    },
+    clickAmount: {
+      formula: `SUM(T2:T${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.clickAmount)
+    }
+  };
+  sheet.addRow(totalRowValues);
+  applyTemplateSheetStyle(sheet, totalRowNumber);
+};
+
 const buildMonthlyWorkbook = async ({ month }) => {
-  const report = await getMonthlyReport({ month });
+  const { monthKey, year } = getMonthRange(month);
+  const reports = await Promise.all(
+    Array.from({ length: 12 }, (_, index) =>
+      getMonthlyReport({ month: `${year}-${String(index + 1).padStart(2, "0")}` })
+    )
+  );
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Sampi Medline";
   workbook.created = new Date();
 
-  const sheet = workbook.addWorksheet("Reporter hisobot", {
-    views: [{ state: "frozen", ySplit: 1 }]
+  reports.forEach((report, index) => {
+    addTemplateMonthSheet(workbook, report, index + 1);
   });
 
-  sheet.columns = [
-    { header: "Sana", key: "date", width: 14 },
-    { header: "LOR mijozlari soni", key: "lorClientsCount", width: 18 },
-    { header: "LOR jami summa", key: "lorTotalAmount", width: 18 },
-    { header: "LOR kelgan summa", key: "lorPaidAmount", width: 18 },
-    { header: "LOR 50%", key: "lorHalfPaidAmount", width: 16 },
-    { header: "Protsedura soni", key: "procedureCount", width: 18 },
-    { header: "Protsedura jami", key: "procedureTotalAmount", width: 18 },
-    { header: "Protsedura kelgan", key: "procedurePaidAmount", width: 18 },
-    { header: "LOR 50% + Protsedura", key: "autoIncomeTotal", width: 22 },
-    { header: "Harajat", key: "expenseAmount", width: 16 },
-    { header: "Ta'minot", key: "supplyAmount", width: 16 },
-    { header: "Dori", key: "medicineAmount", width: 16 },
-    { header: "Boshliq", key: "bossAmount", width: 16 },
-    { header: "Terminal", key: "terminalAmount", width: 16 },
-    { header: "Perechisleniya", key: "transferAmount", width: 18 },
-    { header: "Click", key: "clickAmount", width: 16 },
-    { header: "Reporter qarz", key: "debtAmount", width: 16 },
-    { header: "Kassadagi qarz", key: "cashierDebtAmount", width: 16 },
-    { header: "Izoh", key: "note", width: 32 }
-  ];
-
-  for (const row of report.rows) {
-    sheet.addRow({
-      date: row.date,
-      lorClientsCount: row.cashier.lor.count,
-      lorTotalAmount: row.cashier.lor.totalAmount,
-      lorPaidAmount: row.cashier.lor.paidAmount,
-      lorHalfPaidAmount: row.cashier.lor.halfPaidAmount,
-      procedureCount: row.cashier.procedure.proceduresCount,
-      procedureTotalAmount: row.cashier.procedure.totalAmount,
-      procedurePaidAmount: row.cashier.procedure.paidAmount,
-      autoIncomeTotal:
-        row.cashier.lor.halfPaidAmount + row.cashier.procedure.paidAmount,
-      expenseAmount: row.manual.expenseAmount,
-      supplyAmount: row.manual.supplyAmount,
-      medicineAmount: row.manual.medicineAmount,
-      bossAmount: row.manual.bossAmount,
-      terminalAmount: row.manual.terminalAmount,
-      transferAmount: row.manual.transferAmount,
-      clickAmount: row.manual.clickAmount,
-      debtAmount: row.manual.debtAmount,
-      cashierDebtAmount: row.cashier.total.debtAmount,
-      note: row.manual.note
-    });
-  }
-
-  sheet.addRow({});
-  const totalRow = sheet.addRow({
-    date: "Jami",
-    lorClientsCount: report.totals.lorClientsCount,
-    lorTotalAmount: report.totals.lorTotalAmount,
-    lorPaidAmount: report.totals.lorPaidAmount,
-    lorHalfPaidAmount: report.totals.lorHalfPaidAmount,
-    procedureCount: report.totals.procedureCount,
-    procedureTotalAmount: report.totals.procedureTotalAmount,
-    procedurePaidAmount: report.totals.procedurePaidAmount,
-    autoIncomeTotal: report.totals.autoIncomeTotal,
-    expenseAmount: report.totals.expenseAmount,
-    supplyAmount: report.totals.supplyAmount,
-    medicineAmount: report.totals.medicineAmount,
-    bossAmount: report.totals.bossAmount,
-    terminalAmount: report.totals.terminalAmount,
-    transferAmount: report.totals.transferAmount,
-    clickAmount: report.totals.clickAmount,
-    debtAmount: report.totals.debtAmount,
-    cashierDebtAmount: report.totals.cashierDebtAmount
-  });
-
-  sheet.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  sheet.getRow(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF0F766E" }
-  };
-  sheet.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
-  sheet.getRow(1).height = 24;
-  totalRow.font = { bold: true };
-  totalRow.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE0F2FE" }
-  };
-  setNumberFormat(sheet, Array.from({ length: 17 }, (_, index) => index + 2));
-  sheet.getColumn(19).alignment = { wrapText: true, vertical: "top" };
-
-  return { workbook, report };
+  return { workbook, report: { month: monthKey, year, reports } };
 };
 
 module.exports = {
