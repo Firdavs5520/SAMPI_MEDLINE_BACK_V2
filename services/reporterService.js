@@ -479,7 +479,7 @@ const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
         vertical: "middle"
       };
       if (columnNumber === 1) {
-        cell.numFmt = "dd.mm.yy";
+        cell.numFmt = "dd\\.mm\\.yy;@";
       }
       cell.border = border;
     });
@@ -498,7 +498,7 @@ const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
     vertical: "middle"
   };
 
-  sheet.getColumn(1).numFmt = "dd.mm.yy";
+  sheet.getColumn(1).numFmt = "dd\\.mm\\.yy;@";
   sheet.getColumn(1).alignment = { horizontal: "center", vertical: "middle" };
   setNumberFormat(sheet, Array.from({ length: 19 }, (_, index) => index + 2));
 };
