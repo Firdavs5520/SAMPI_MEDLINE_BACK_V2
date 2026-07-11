@@ -488,6 +488,12 @@ const createEntryFromCheck = async ({ payload, user }) => {
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
   const patientName = resolvePatientNameFromCheck(check);
   const specialistName = String(check?.createdBy?.name || "").trim();
+  const patientPhone = String(payload.patientPhone || "").trim();
+  const settings = await cashierSettingsService.getSettings();
+
+  if (settings.requireDebtPhone && debtAmount > 0 && !patientPhone) {
+    throw new AppError("Qarz qolsa bemor telefoni majburiy", 400);
+  }
 
   if (!specialistName) {
     throw new AppError("Chek yaratuvchisi ma'lumoti topilmadi", 400);
@@ -534,7 +540,7 @@ const createEntryFromCheck = async ({ payload, user }) => {
     specialistName,
     ...(specialistId ? { specialistId } : {}),
     debtPayments,
-    patientPhone: String(payload.patientPhone || "").trim(),
+    patientPhone,
     note: String(payload.note || "").trim(),
     entryDate: new Date(),
     createdBy: {
@@ -928,6 +934,15 @@ const updateEntry = async ({ entryId, payload, user }) => {
   const paidInput =
     payload.paidAmount !== undefined ? payload.paidAmount : entry.paidAmount ?? nextAmount;
   const { paidAmount, debtAmount } = resolvePaidAndDebt(nextAmount, paidInput);
+  const nextPatientPhone =
+    payload.patientPhone !== undefined
+      ? String(payload.patientPhone || "").trim()
+      : String(entry.patientPhone || "").trim();
+  const settings = await cashierSettingsService.getSettings();
+
+  if (settings.requireDebtPhone && debtAmount > 0 && !nextPatientPhone) {
+    throw new AppError("Qarz qolsa bemor telefoni majburiy", 400);
+  }
 
   entry.amount = nextAmount;
   entry.paidAmount = paidAmount;
@@ -940,7 +955,7 @@ const updateEntry = async ({ entryId, payload, user }) => {
   }
 
   if (payload.patientPhone !== undefined) {
-    entry.patientPhone = String(payload.patientPhone || "").trim();
+    entry.patientPhone = nextPatientPhone;
   }
 
   if (payload.note !== undefined) {
