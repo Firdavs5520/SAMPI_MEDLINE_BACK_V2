@@ -15,5 +15,6 @@ router.post("/specialists", allowRoles("cashier"), cashierController.createSpeci
 router.post("/entries", allowRoles("cashier"), cashierController.createEntry);
 router.patch("/entries/:id", allowRoles("cashier"), cashierController.updateEntry);
 router.post("/entries/:id/payments", allowRoles("cashier"), cashierController.payDebt);
+router.delete("/entries/:id", allowRoles("cashier"), cashierController.deleteEntry);
 
 module.exports = router;
