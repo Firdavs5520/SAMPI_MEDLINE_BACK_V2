@@ -478,6 +478,9 @@ const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
         horizontal: columnNumber === 1 ? "center" : "right",
         vertical: "middle"
       };
+      if (columnNumber === 1) {
+        cell.numFmt = "dd.mm.yy";
+      }
       cell.border = border;
     });
   }
