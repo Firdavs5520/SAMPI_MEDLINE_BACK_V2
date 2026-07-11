@@ -332,6 +332,8 @@ const addRowToTotals = (totals, row) => {
   totals.procedureCount += row.cashier.procedure.proceduresCount;
   totals.procedureTotalAmount += row.cashier.procedure.totalAmount;
   totals.procedurePaidAmount += row.cashier.procedure.paidAmount;
+  totals.autoIncomeTotal +=
+    row.cashier.lor.halfPaidAmount + row.cashier.procedure.paidAmount;
   totals.cashierDebtAmount += row.cashier.total.debtAmount;
 
   for (const field of AMOUNT_FIELDS) {
@@ -347,6 +349,7 @@ const createEmptyTotals = () => ({
   procedureCount: 0,
   procedureTotalAmount: 0,
   procedurePaidAmount: 0,
+  autoIncomeTotal: 0,
   cashierDebtAmount: 0,
   ...AMOUNT_FIELDS.reduce((acc, field) => ({ ...acc, [field]: 0 }), {})
 });
@@ -403,6 +406,7 @@ const buildMonthlyWorkbook = async ({ month }) => {
     { header: "Protsedura soni", key: "procedureCount", width: 18 },
     { header: "Protsedura jami", key: "procedureTotalAmount", width: 18 },
     { header: "Protsedura kelgan", key: "procedurePaidAmount", width: 18 },
+    { header: "LOR 50% + Protsedura", key: "autoIncomeTotal", width: 22 },
     { header: "Harajat", key: "expenseAmount", width: 16 },
     { header: "Ta'minot", key: "supplyAmount", width: 16 },
     { header: "Dori", key: "medicineAmount", width: 16 },
@@ -425,6 +429,8 @@ const buildMonthlyWorkbook = async ({ month }) => {
       procedureCount: row.cashier.procedure.proceduresCount,
       procedureTotalAmount: row.cashier.procedure.totalAmount,
       procedurePaidAmount: row.cashier.procedure.paidAmount,
+      autoIncomeTotal:
+        row.cashier.lor.halfPaidAmount + row.cashier.procedure.paidAmount,
       expenseAmount: row.manual.expenseAmount,
       supplyAmount: row.manual.supplyAmount,
       medicineAmount: row.manual.medicineAmount,
@@ -448,6 +454,7 @@ const buildMonthlyWorkbook = async ({ month }) => {
     procedureCount: report.totals.procedureCount,
     procedureTotalAmount: report.totals.procedureTotalAmount,
     procedurePaidAmount: report.totals.procedurePaidAmount,
+    autoIncomeTotal: report.totals.autoIncomeTotal,
     expenseAmount: report.totals.expenseAmount,
     supplyAmount: report.totals.supplyAmount,
     medicineAmount: report.totals.medicineAmount,
@@ -473,8 +480,8 @@ const buildMonthlyWorkbook = async ({ month }) => {
     pattern: "solid",
     fgColor: { argb: "FFE0F2FE" }
   };
-  setNumberFormat(sheet, Array.from({ length: 16 }, (_, index) => index + 2));
-  sheet.getColumn(18).alignment = { wrapText: true, vertical: "top" };
+  setNumberFormat(sheet, Array.from({ length: 17 }, (_, index) => index + 2));
+  sheet.getColumn(19).alignment = { wrapText: true, vertical: "top" };
 
   return { workbook, report };
 };
