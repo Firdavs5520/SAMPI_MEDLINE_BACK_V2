@@ -25,6 +25,11 @@ const defaultUsers = [
     name: "Kassir",
     email: "cashier@mail.com",
     role: "cashier"
+  },
+  {
+    name: "Reporter",
+    email: "reporter@mail.com",
+    role: "reporter"
   }
 ];
 
