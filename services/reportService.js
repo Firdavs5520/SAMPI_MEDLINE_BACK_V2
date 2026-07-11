@@ -4,13 +4,12 @@ const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const CashierEntry = require("../models/CashierEntry");
 const { getMonitoringOverview } = require("./monitoringService");
+const cashierSettingsService = require("./cashierSettingsService");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
 const STAFF_ROLES = ["nurse", "lor"];
 const TASHKENT_OFFSET_HOURS = 5;
 const TASHKENT_OFFSET_MS = TASHKENT_OFFSET_HOURS * 60 * 60 * 1000;
-const SHIFT_START_HOUR = 8;
-const SHIFT_END_HOUR = 2;
 
 const getNowInTashkent = (nowUtc = new Date()) => new Date(nowUtc.getTime() + TASHKENT_OFFSET_MS);
 const toUtcFromTashkentDate = (dateInTashkentTime) =>
@@ -70,26 +69,12 @@ const toUtcDateFromTashkent = (
     )
   );
 
-const getShiftRange = (dateString) => {
+const getShiftRange = async (dateString) => {
   const safeDateString = normalizeDateString(dateString);
-  const { year, month, day } = parseDateParts(safeDateString);
-  const start = toUtcDateFromTashkent(year, month, day, SHIFT_START_HOUR, 0, 0, 0);
-  const shiftEndsNextDay = SHIFT_END_HOUR <= SHIFT_START_HOUR;
-  const endBoundary = toUtcDateFromTashkent(
-    year,
-    month,
-    shiftEndsNextDay ? day + 1 : day,
-    SHIFT_END_HOUR,
-    0,
-    0,
-    0
-  );
-
-  return {
-    safeDateString,
-    start,
-    end: new Date(endBoundary.getTime() - 1)
-  };
+  return cashierSettingsService.getShiftRange({
+    dateString: safeDateString,
+    dateParts: parseDateParts(safeDateString)
+  });
 };
 
 const getAllChecks = async () => {
@@ -384,7 +369,8 @@ const getMostUsedMedicines = async (limit = 10) => {
 };
 
 const getShiftCloseReport = async ({ date } = {}) => {
-  const { safeDateString, start, end } = getShiftRange(date);
+  const { safeDateString, start, end, fromLabel, toLabel, settings } =
+    await getShiftRange(date);
 
   const [summary] = await CashierEntry.aggregate([
     {
@@ -466,10 +452,11 @@ const getShiftCloseReport = async ({ date } = {}) => {
   return {
     date: safeDateString,
     shift: {
-      fromLabel: "08:00",
-      toLabel: "02:00",
+      fromLabel,
+      toLabel,
       start: start.toISOString(),
-      end: end.toISOString()
+      end: end.toISOString(),
+      settings
     },
     totals: {
       totalAmount: Number(overall.totalAmount || 0),

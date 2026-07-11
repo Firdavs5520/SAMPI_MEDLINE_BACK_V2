@@ -7,6 +7,8 @@ const router = express.Router();
 
 router.use(protect, allowRoles("cashier", "manager"));
 
+router.get("/settings", cashierController.getSettings);
+router.put("/settings", allowRoles("cashier"), cashierController.updateSettings);
 router.get("/entries", cashierController.getEntries);
 router.get("/summary", cashierController.getSummary);
 router.get("/pending-checks", cashierController.getPendingChecks);

@@ -1,6 +1,23 @@
 const asyncHandler = require("../utils/asyncHandler");
 const cashierService = require("../services/cashierService");
 
+const getSettings = asyncHandler(async (req, res) => {
+  const data = await cashierService.getSettings({
+    user: req.user
+  });
+
+  res.status(200).json({ success: true, data });
+});
+
+const updateSettings = asyncHandler(async (req, res) => {
+  const data = await cashierService.updateSettings({
+    payload: req.body,
+    user: req.user
+  });
+
+  res.status(200).json({ success: true, data });
+});
+
 const getEntries = asyncHandler(async (req, res) => {
   const data = await cashierService.getEntries({
     user: req.user,
@@ -108,6 +125,8 @@ const deleteSpecialist = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getSettings,
+  updateSettings,
   getEntries,
   getSummary,
   getPendingChecks,

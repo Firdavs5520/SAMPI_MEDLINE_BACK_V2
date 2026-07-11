@@ -2,16 +2,13 @@ const CashierEntry = require("../models/CashierEntry");
 const CashierSpecialist = require("../models/CashierSpecialist");
 const Check = require("../models/Check");
 const AppError = require("../utils/AppError");
+const cashierSettingsService = require("./cashierSettingsService");
 
 const DEPARTMENTS = ["lor", "nurse", "procedure"];
 const SPECIALIST_TYPES = ["nurse", "lor"];
 const PAYMENT_METHODS = ["cash", "card", "transfer"];
 const TIME_SCOPES = ["all", "active", "history"];
 const TASHKENT_UTC_OFFSET_HOURS = 5;
-const SHIFT_START_HOUR = 8;
-const SHIFT_END_HOUR = 2;
-const SHIFT_LABEL_FROM = "08:00";
-const SHIFT_LABEL_TO = "02:00";
 const CHECK_CREATOR_ROLES = ["nurse", "lor"];
 const isValidObjectId = (value) =>
   typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
@@ -78,27 +75,12 @@ const getDateRange = (dateString) => {
   return { safeDateString, start, end };
 };
 
-const getShiftRange = (dateString) => {
+const getShiftRange = async (dateString) => {
   const safeDateString = normalizeDateString(dateString);
-  const { year, month, day } = parseDateParts(safeDateString);
-  const start = toUtcDateFromTashkent(year, month, day, SHIFT_START_HOUR, 0, 0, 0);
-  const shiftEndsNextDay = SHIFT_END_HOUR <= SHIFT_START_HOUR;
-  const endBoundary = toUtcDateFromTashkent(
-    year,
-    month,
-    shiftEndsNextDay ? day + 1 : day,
-    SHIFT_END_HOUR,
-    0,
-    0,
-    0
-  );
-  const end = new Date(endBoundary.getTime() - 1);
-
-  return {
-    safeDateString,
-    start,
-    end
-  };
+  return cashierSettingsService.getShiftRange({
+    dateString: safeDateString,
+    dateParts: parseDateParts(safeDateString)
+  });
 };
 
 const normalizeDepartment = (value, { allowAll = false } = {}) => {
@@ -319,7 +301,12 @@ const assertCashierWritePermission = (user) => {
   }
 };
 
-const buildListFilter = ({
+const getSettings = async ({ user }) => cashierSettingsService.getSettings({ user });
+
+const updateSettings = async ({ payload, user }) =>
+  cashierSettingsService.updateSettings({ payload, user });
+
+const buildListFilter = async ({
   date,
   department,
   specialistType,
@@ -329,7 +316,13 @@ const buildListFilter = ({
   timeScope = "all"
 }) => {
   const { start: dayStart, end: dayEnd, safeDateString } = getDateRange(date);
-  const { start: shiftStart, end: shiftEnd } = getShiftRange(safeDateString);
+  const {
+    start: shiftStart,
+    end: shiftEnd,
+    fromLabel: shiftFromLabel,
+    toLabel: shiftToLabel,
+    settings: cashierSettings
+  } = await getShiftRange(safeDateString);
   const safeDepartment = normalizeDepartment(department, { allowAll: true });
   const safeSpecialistType = normalizeSpecialistType(specialistType, { allowAll: true });
   const safePaymentMethod = normalizePaymentMethod(paymentMethod, { allowAll: true });
@@ -400,7 +393,10 @@ const buildListFilter = ({
     safeDebtOnly,
     safeTimeScope,
     shiftStart,
-    shiftEnd
+    shiftEnd,
+    shiftFromLabel,
+    shiftToLabel,
+    cashierSettings
   };
 };
 
@@ -633,8 +629,11 @@ const getEntries = async ({
     safeDebtOnly,
     safeTimeScope,
     shiftStart,
-    shiftEnd
-  } = buildListFilter({
+    shiftEnd,
+    shiftFromLabel,
+    shiftToLabel,
+    cashierSettings
+  } = await buildListFilter({
     date,
     department,
     specialistType,
@@ -659,8 +658,9 @@ const getEntries = async ({
     shift: {
       start: shiftStart.toISOString(),
       end: shiftEnd.toISOString(),
-      fromLabel: SHIFT_LABEL_FROM,
-      toLabel: SHIFT_LABEL_TO
+      fromLabel: shiftFromLabel,
+      toLabel: shiftToLabel,
+      settings: cashierSettings
     },
     entries
   };
@@ -687,8 +687,11 @@ const getSummary = async ({
     safeDebtOnly,
     safeTimeScope,
     shiftStart,
-    shiftEnd
-  } = buildListFilter({
+    shiftEnd,
+    shiftFromLabel,
+    shiftToLabel,
+    cashierSettings
+  } = await buildListFilter({
     date,
     department,
     specialistType,
@@ -790,8 +793,9 @@ const getSummary = async ({
     shift: {
       start: shiftStart.toISOString(),
       end: shiftEnd.toISOString(),
-      fromLabel: SHIFT_LABEL_FROM,
-      toLabel: SHIFT_LABEL_TO
+      fromLabel: shiftFromLabel,
+      toLabel: shiftToLabel,
+      settings: cashierSettings
     },
     totalAmount: Number(overall.totalAmount || 0),
     totalPaidAmount: Number(overall.totalPaidAmount || 0),
@@ -1025,6 +1029,8 @@ const deleteEntry = async ({ entryId, user }) => {
 };
 
 module.exports = {
+  getSettings,
+  updateSettings,
   getEntries,
   getSummary,
   getPendingChecks,
