@@ -433,9 +433,11 @@ const blankIfZero = (value) => {
 const sumValues = (...values) =>
   values.reduce((total, value) => total + Number(value || 0), 0);
 
-const parseDateKeyToExcelDate = (dateKey) => {
+const formatDateKeyForExcel = (dateKey) => {
   const { year, month, day } = parseDateParts(dateKey);
-  return new Date(Date.UTC(year, month - 1, day));
+  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${String(
+    year
+  ).slice(-2)}`;
 };
 
 const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
@@ -528,7 +530,7 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
     );
 
     sheet.addRow({
-      date: parseDateKeyToExcelDate(row.date),
+      date: formatDateKeyForExcel(row.date),
       lorClientsCount: blankIfZero(row.cashier.lor.count),
       lorPaidAmount: blankIfZero(lorPaidAmount),
       lorHalfPaidAmount: {
