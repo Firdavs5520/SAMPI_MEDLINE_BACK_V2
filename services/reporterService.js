@@ -6,8 +6,12 @@ const AppError = require("../utils/AppError");
 const TASHKENT_OFFSET_HOURS = 5;
 const AMOUNT_FIELDS = [
   "expenseAmount",
-  "supplyAmount",
   "medicineAmount",
+  "supplyAmount",
+  "stationeryAmount",
+  "communicationAmount",
+  "childrenAmount",
+  "homeAmount",
   "bossAmount",
   "terminalAmount",
   "transferAmount",
@@ -17,8 +21,12 @@ const AMOUNT_FIELDS = [
 
 const AMOUNT_LABELS = {
   expenseAmount: "Harajat",
-  supplyAmount: "Ta'minot",
   medicineAmount: "Dori",
+  supplyAmount: "Ta'minot",
+  stationeryAmount: "Kanstovar",
+  communicationAmount: "Aloqa",
+  childrenAmount: "Farzandlarga",
+  homeAmount: "Uy uchun",
   bossAmount: "Boshliq summasi",
   terminalAmount: "Terminal",
   transferAmount: "Perechisleniya",
@@ -525,6 +533,10 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
       row.manual.expenseAmount,
       row.manual.medicineAmount,
       row.manual.supplyAmount,
+      row.manual.stationeryAmount,
+      row.manual.communicationAmount,
+      row.manual.childrenAmount,
+      row.manual.homeAmount,
       row.manual.bossAmount,
       row.manual.debtAmount
     );
@@ -546,10 +558,10 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
       expenseAmount: blankIfZero(row.manual.expenseAmount),
       medicineAmount: blankIfZero(row.manual.medicineAmount),
       supplyAmount: blankIfZero(row.manual.supplyAmount),
-      stationeryAmount: null,
-      communicationAmount: null,
-      childrenAmount: null,
-      homeAmount: null,
+      stationeryAmount: blankIfZero(row.manual.stationeryAmount),
+      communicationAmount: blankIfZero(row.manual.communicationAmount),
+      childrenAmount: blankIfZero(row.manual.childrenAmount),
+      homeAmount: blankIfZero(row.manual.homeAmount),
       bossAmount: blankIfZero(row.manual.bossAmount),
       terminalAmount: blankIfZero(row.manual.terminalAmount),
       transferAmount: blankIfZero(row.manual.transferAmount),
@@ -567,6 +579,10 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
     report.totals.expenseAmount,
     report.totals.medicineAmount,
     report.totals.supplyAmount,
+    report.totals.stationeryAmount,
+    report.totals.communicationAmount,
+    report.totals.childrenAmount,
+    report.totals.homeAmount,
     report.totals.bossAmount,
     report.totals.debtAmount
   );
@@ -608,10 +624,22 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
       formula: `SUM(J2:J${totalRowNumber - 1})`,
       result: blankIfZero(report.totals.supplyAmount)
     },
-    stationeryAmount: null,
-    communicationAmount: null,
-    childrenAmount: null,
-    homeAmount: null,
+    stationeryAmount: {
+      formula: `SUM(K2:K${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.stationeryAmount)
+    },
+    communicationAmount: {
+      formula: `SUM(L2:L${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.communicationAmount)
+    },
+    childrenAmount: {
+      formula: `SUM(M2:M${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.childrenAmount)
+    },
+    homeAmount: {
+      formula: `SUM(N2:N${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.homeAmount)
+    },
     bossAmount: {
       formula: `SUM(O2:O${totalRowNumber - 1})`,
       result: blankIfZero(report.totals.bossAmount)
