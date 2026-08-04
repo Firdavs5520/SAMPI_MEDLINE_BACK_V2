@@ -76,8 +76,16 @@ const createQueueCode = async ({ start, end }) => {
   const count = await LorCurrentPatient.countDocuments({
     acceptedAt: { $gte: start, $lte: end }
   });
+  const nextQueueNumber = (count % 99) + 1;
 
-  return `N-${String(count + 1).padStart(3, "0")}`;
+  return String(nextQueueNumber).padStart(2, "0");
+};
+
+const formatQueueCodeForTv = (value) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  const parsed = Number(digits);
+  if (!Number.isFinite(parsed) || parsed <= 0) return "--";
+  return String(((parsed - 1) % 99) + 1).padStart(2, "0");
 };
 
 const toIso = (value) => {
@@ -93,8 +101,7 @@ const getMinutesSince = (value, now = new Date()) => {
 
 const serializeCurrentPatient = (row, now) => ({
   id: String(row._id),
-  queueCode: String(row.queueCode || "").trim(),
-  doctorLabel: String(row?.doctor?.name || "").trim() || "LOR",
+  queueCode: formatQueueCodeForTv(row.queueCode),
   acceptedAt: toIso(row.acceptedAt || row.createdAt),
   createdAt: toIso(row.createdAt),
   minutesSinceAccepted: getMinutesSince(row.acceptedAt || row.createdAt, now)
