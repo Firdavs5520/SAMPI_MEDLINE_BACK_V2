@@ -3,7 +3,7 @@ const cashierSettingsService = require("./cashierSettingsService");
 const AppError = require("../utils/AppError");
 
 const TASHKENT_UTC_OFFSET_HOURS = 5;
-const LOR_IDENTITIES = ["lor1", "lor2"];
+const LOR_IDENTITIES = ["lor1"];
 const DEFAULT_LIMIT = 16;
 const MAX_LIMIT = 40;
 
@@ -38,7 +38,7 @@ const normalizeLorIdentityFilter = (value) => {
   const safe = String(value || "all").trim().toLowerCase();
   if (!safe || safe === "all") return "all";
   if (!LOR_IDENTITIES.includes(safe)) {
-    throw new AppError("lorIdentity lor1, lor2 yoki all bo'lishi kerak", 400);
+    throw new AppError("LOR-2 arxivda. TV navbat faqat LOR-1 uchun ishlaydi", 400);
   }
   return safe;
 };
@@ -51,14 +51,13 @@ const normalizeLimit = (value) => {
 
 const getRoomLabel = (identity) => {
   if (identity === "lor1") return "LOR-1";
-  if (identity === "lor2") return "LOR-2";
   return "LOR";
 };
 
 const getQueueCode = (entry, index) => {
   const raw = String(entry?.checkCode || entry?._id || "").replace(/[^a-zA-Z0-9]/g, "");
   const suffix = (raw.slice(-4) || String(index + 1).padStart(4, "0")).toUpperCase();
-  const roomPrefix = entry?.checkLorIdentity === "lor2" ? "L2" : entry?.checkLorIdentity === "lor1" ? "L1" : "LR";
+  const roomPrefix = entry?.checkLorIdentity === "lor1" ? "L1" : "LR";
   return `${roomPrefix}-${suffix}`;
 };
 
@@ -109,6 +108,7 @@ const getLorQueue = async ({ date, lorIdentity = "all", limit = DEFAULT_LIMIT } 
   const filter = {
     department: "lor",
     specialistType: "lor",
+    checkLorIdentity: "lor1",
     entryDate: { $gte: shift.start, $lte: shift.end }
   };
 

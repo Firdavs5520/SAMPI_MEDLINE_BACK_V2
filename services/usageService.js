@@ -136,8 +136,8 @@ const normalizeLorIdentity = (value) => {
     throw new AppError("LOR uchun lorIdentity majburiy", 400);
   }
 
-  if (!["lor1", "lor2"].includes(normalized)) {
-    throw new AppError("lorIdentity lor1 yoki lor2 bo'lishi kerak", 400);
+  if (normalized !== "lor1") {
+    throw new AppError("LOR-2 arxivda. Yangi cheklar faqat LOR-1 orqali yuritiladi", 400);
   }
 
   return normalized;
