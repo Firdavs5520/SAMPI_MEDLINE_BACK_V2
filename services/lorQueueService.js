@@ -49,7 +49,7 @@ const getTodayShiftRange = async (date) => {
 const normalizeLorIdentity = (value) => {
   const safe = String(value || "lor1").trim().toLowerCase();
   if (!LOR_IDENTITIES.includes(safe)) {
-    throw new AppError("LOR-2 arxivda. Navbat faqat LOR-1 uchun ishlaydi", 400);
+    throw new AppError("Navbat faqat faol LOR uchun ishlaydi", 400);
   }
   return safe;
 };

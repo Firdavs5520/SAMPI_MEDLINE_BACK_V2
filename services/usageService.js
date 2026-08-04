@@ -138,7 +138,7 @@ const normalizeLorIdentity = (value) => {
   }
 
   if (normalized !== "lor1") {
-    throw new AppError("LOR-2 arxivda. Yangi cheklar faqat LOR-1 orqali yuritiladi", 400);
+    throw new AppError("Yangi cheklar faqat faol LOR orqali yuritiladi", 400);
   }
 
   return normalized;

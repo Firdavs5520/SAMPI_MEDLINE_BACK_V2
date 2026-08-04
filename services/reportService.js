@@ -258,14 +258,13 @@ const aggregateLorIdentityStats = async (periodMatch) => {
   ]);
 
   const stats = {
-    lor1: { totalRevenue: 0, checksCount: 0 },
-    lor2: { totalRevenue: 0, checksCount: 0 }
+    lor1: { totalRevenue: 0, checksCount: 0 }
   };
 
   for (const item of groupedRows) {
     const key = String(item?._id || "").toLowerCase();
-    if (key === "lor1" || key === "lor2") {
-      stats[key] = {
+    if (key === "lor1") {
+      stats.lor1 = {
         totalRevenue: Number(item.totalRevenue || 0),
         checksCount: Number(item.checksCount || 0)
       };
