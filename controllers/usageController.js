@@ -139,7 +139,9 @@ const cancelLorQueueTicket = asyncHandler(async (req, res) => {
   const data = await usageService.cancelLorQueueTicket({
     user: req.user,
     ticketId: req.params.id,
-    lorIdentity: req.body.lorIdentity
+    lorIdentity: req.body.lorIdentity,
+    reason: req.body.reason,
+    note: req.body.note
   });
 
   res.status(200).json({

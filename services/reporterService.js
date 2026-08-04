@@ -1,5 +1,6 @@
 const ExcelJS = require("exceljs");
 const CashierEntry = require("../models/CashierEntry");
+const LorQueueTicket = require("../models/LorQueueTicket");
 const ReporterDailyRecord = require("../models/ReporterDailyRecord");
 const AppError = require("../utils/AppError");
 
@@ -77,6 +78,19 @@ const emptyCashierStats = () => ({
   totalAmount: 0,
   paidAmount: 0,
   debtAmount: 0
+});
+
+const emptyLorQueueStats = () => ({
+  issuedCount: 0,
+  waitingCount: 0,
+  inProgressCount: 0,
+  calledCount: 0,
+  completedCount: 0,
+  cancelledCount: 0,
+  avgWaitMinutes: 0,
+  avgServiceMinutes: 0,
+  avgTotalMinutes: 0,
+  cancelReasons: []
 });
 
 const emptyManualAmounts = () =>
@@ -246,7 +260,13 @@ const mapStats = (stats = emptyCashierStats()) => ({
   debtAmount: Number(stats.debtAmount || 0)
 });
 
-const buildReportRow = ({ dateKey, cashier = {}, manualRecord = null }) => {
+const normalizeLorQueueStats = (stats = emptyLorQueueStats()) => ({
+  ...emptyLorQueueStats(),
+  ...stats,
+  cancelReasons: Array.isArray(stats.cancelReasons) ? stats.cancelReasons : []
+});
+
+const buildReportRow = ({ dateKey, cashier = {}, manualRecord = null, lorQueue = null }) => {
   const lor = mapStats(cashier.lor);
   const procedure = mapStats(cashier.nurse);
   const total = mapStats(cashier.total);
@@ -266,6 +286,7 @@ const buildReportRow = ({ dateKey, cashier = {}, manualRecord = null }) => {
       },
       total
     },
+    lorQueue: normalizeLorQueueStats(lorQueue),
     manual
   };
 };
@@ -326,17 +347,118 @@ const aggregateCashierByDay = async ({ start, end }) => {
   return byDate;
 };
 
+const roundOne = (value) => {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? Number(number.toFixed(1)) : 0;
+};
+
+const getDurationMinutes = (start, end) => {
+  const startDate = start ? new Date(start) : null;
+  const endDate = end ? new Date(end) : null;
+  if (
+    !startDate ||
+    !endDate ||
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(endDate.getTime())
+  ) {
+    return null;
+  }
+
+  return Math.max(0, (endDate.getTime() - startDate.getTime()) / 60000);
+};
+
+const aggregateLorQueueByDay = async ({ dateKeys }) => {
+  const safeDateKeys = (dateKeys || []).filter(Boolean);
+  if (!safeDateKeys.length) return {};
+
+  const tickets = await LorQueueTicket.find({
+    shiftDate: { $in: safeDateKeys },
+    lorIdentity: "lor1"
+  })
+    .select("shiftDate status createdAt calledAt completedAt cancelReason")
+    .lean();
+
+  const byDate = {};
+  const getStats = (dateKey) => {
+    byDate[dateKey] = byDate[dateKey] || {
+      ...emptyLorQueueStats(),
+      waitTotal: 0,
+      waitSamples: 0,
+      serviceTotal: 0,
+      serviceSamples: 0,
+      totalTotal: 0,
+      totalSamples: 0,
+      reasonCounts: {}
+    };
+    return byDate[dateKey];
+  };
+
+  for (const ticket of tickets) {
+    const stats = getStats(ticket.shiftDate);
+    const status = String(ticket.status || "");
+    stats.issuedCount += 1;
+    if (status === "waiting") stats.waitingCount += 1;
+    if (status === "in_progress") stats.inProgressCount += 1;
+    if (status === "completed") stats.completedCount += 1;
+    if (status === "cancelled") {
+      stats.cancelledCount += 1;
+      const reason = String(ticket.cancelReason || "other").trim() || "other";
+      stats.reasonCounts[reason] = (stats.reasonCounts[reason] || 0) + 1;
+    }
+    if (ticket.calledAt) stats.calledCount += 1;
+
+    const waitMinutes = getDurationMinutes(ticket.createdAt, ticket.calledAt);
+    if (waitMinutes !== null) {
+      stats.waitTotal += waitMinutes;
+      stats.waitSamples += 1;
+    }
+
+    const serviceMinutes = getDurationMinutes(ticket.calledAt, ticket.completedAt);
+    if (serviceMinutes !== null) {
+      stats.serviceTotal += serviceMinutes;
+      stats.serviceSamples += 1;
+    }
+
+    const totalMinutes = getDurationMinutes(ticket.createdAt, ticket.completedAt);
+    if (totalMinutes !== null) {
+      stats.totalTotal += totalMinutes;
+      stats.totalSamples += 1;
+    }
+  }
+
+  for (const [dateKey, stats] of Object.entries(byDate)) {
+    byDate[dateKey] = {
+      issuedCount: stats.issuedCount,
+      waitingCount: stats.waitingCount,
+      inProgressCount: stats.inProgressCount,
+      calledCount: stats.calledCount,
+      completedCount: stats.completedCount,
+      cancelledCount: stats.cancelledCount,
+      avgWaitMinutes: roundOne(stats.waitTotal / (stats.waitSamples || 1)),
+      avgServiceMinutes: roundOne(stats.serviceTotal / (stats.serviceSamples || 1)),
+      avgTotalMinutes: roundOne(stats.totalTotal / (stats.totalSamples || 1)),
+      cancelReasons: Object.entries(stats.reasonCounts)
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason))
+    };
+  }
+
+  return byDate;
+};
+
 const getDailyReport = async ({ date }) => {
   const { dateKey, start, end } = getDateRange(date);
-  const [cashierByDay, manualRecord] = await Promise.all([
+  const [cashierByDay, manualRecord, lorQueueByDay] = await Promise.all([
     aggregateCashierByDay({ start, end }),
-    ReporterDailyRecord.findOne({ dateKey }).lean()
+    ReporterDailyRecord.findOne({ dateKey }).lean(),
+    aggregateLorQueueByDay({ dateKeys: [dateKey] })
   ]);
 
   return buildReportRow({
     dateKey,
     cashier: cashierByDay[dateKey],
-    manualRecord
+    manualRecord,
+    lorQueue: lorQueueByDay[dateKey]
   });
 };
 
@@ -402,11 +524,12 @@ const createEmptyTotals = () => ({
 
 const getMonthlyReport = async ({ month }) => {
   const { monthKey, start, end, dateKeys } = getMonthRange(month);
-  const [cashierByDay, manualRows] = await Promise.all([
+  const [cashierByDay, manualRows, lorQueueByDay] = await Promise.all([
     aggregateCashierByDay({ start, end }),
     ReporterDailyRecord.find({
       dateKey: { $gte: `${monthKey}-01`, $lte: `${monthKey}-31` }
-    }).lean()
+    }).lean(),
+    aggregateLorQueueByDay({ dateKeys })
   ]);
 
   const manualByDate = new Map(manualRows.map((row) => [row.dateKey, row]));
@@ -414,7 +537,8 @@ const getMonthlyReport = async ({ month }) => {
     buildReportRow({
       dateKey,
       cashier: cashierByDay[dateKey],
-      manualRecord: manualByDate.get(dateKey)
+      manualRecord: manualByDate.get(dateKey),
+      lorQueue: lorQueueByDay[dateKey]
     })
   );
   const totals = createEmptyTotals();

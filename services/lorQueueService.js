@@ -2,12 +2,19 @@ const mongoose = require("mongoose");
 const LorQueueCounter = require("../models/LorQueueCounter");
 const LorQueueTicket = require("../models/LorQueueTicket");
 const cashierSettingsService = require("./cashierSettingsService");
+const { emitLorQueueChanged } = require("./lorQueueEvents");
 const AppError = require("../utils/AppError");
 
 const TASHKENT_UTC_OFFSET_HOURS = 5;
 const LOR_IDENTITIES = ["lor1"];
 const TICKET_LIMIT = 80;
 const IDEMPOTENCY_KEY_MAX_LENGTH = 120;
+const CANCEL_REASONS = new Set([
+  "patient_absent",
+  "wrong_direction",
+  "patient_left",
+  "other"
+]);
 
 const toTashkentDateString = (date = new Date()) =>
   new Date(date.getTime() + TASHKENT_UTC_OFFSET_HOURS * 60 * 60 * 1000)
@@ -89,6 +96,19 @@ const normalizePatient = (patient) => {
   };
 };
 
+const normalizeCancelReason = (value) => {
+  const safe = String(value || "").trim().toLowerCase();
+  if (!safe) {
+    throw new AppError("Bekor qilish sababini tanlang", 400);
+  }
+  if (!CANCEL_REASONS.has(safe)) {
+    throw new AppError("Bekor qilish sababi noto'g'ri", 400);
+  }
+  return safe;
+};
+
+const normalizeCancelNote = (value) => String(value || "").trim().slice(0, 200);
+
 const assertObjectId = (value, label) => {
   if (!mongoose.Types.ObjectId.isValid(value)) {
     throw new AppError(`${label} noto'g'ri`, 400);
@@ -144,6 +164,8 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
     calledAt: toIso(calledAt),
     completedAt: toIso(row.completedAt),
     cancelledAt: toIso(row.cancelledAt),
+    cancelReason: row.cancelReason || "",
+    cancelNote: row.cancelNote || "",
     minutesSinceCreated: getMinutesSince(createdAt, now),
     minutesSinceCalled: getMinutesSince(calledAt, now),
     checkRef: row.checkRef ? String(row.checkRef) : "",
@@ -210,6 +232,47 @@ const getNextQueueNumber = async ({ shiftDate, lorIdentity }) => {
   return Math.max(0, highestQueueNumber) + 1;
 };
 
+const getLatestQueueTickets = async ({ shiftDate, lorIdentity, limit = 5 }) => {
+  const safeLimit = Math.min(20, Math.max(1, Math.floor(Number(limit) || 5)));
+  return LorQueueTicket.aggregate([
+    {
+      $match: {
+        shiftDate,
+        lorIdentity
+      }
+    },
+    {
+      $addFields: {
+        queueNumber: {
+          $convert: {
+            input: "$queueCode",
+            to: "int",
+            onError: 0,
+            onNull: 0
+          }
+        }
+      }
+    },
+    { $sort: { queueNumber: -1, createdAt: -1, _id: -1 } },
+    { $limit: safeLimit }
+  ]);
+};
+
+const notifyQueueChanged = ({
+  shiftDate,
+  lorIdentity = "lor1",
+  action = "changed",
+  ticket
+} = {}) => {
+  emitLorQueueChanged({
+    shiftDate,
+    lorIdentity,
+    action,
+    ticketId: ticket?._id ? String(ticket._id) : ticket?.id || "",
+    queueCode: ticket?.queueCode || ""
+  });
+};
+
 const syncCounterToIssuedQueue = async ({ shiftDate, lorIdentity, queueNumber }) => {
   const key = buildCounterKey({ shiftDate, lorIdentity });
   await LorQueueCounter.findOneAndUpdate(
@@ -273,6 +336,13 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
         queueNumber
       });
 
+      notifyQueueChanged({
+        shiftDate: safeDateString,
+        lorIdentity: normalizedLorIdentity,
+        action: "issued",
+        ticket
+      });
+
       return serializeTicket(ticket);
     } catch (error) {
       if (error?.code !== 11000) {
@@ -301,7 +371,7 @@ const getIssueStatus = async ({ user, lorIdentity = "lor1" } = {}) => {
   assertCashierUser(user);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
   const { safeDateString, shift } = await getTodayShiftRange();
-  const [lastIssued, issuedCount] = await Promise.all([
+  const [lastIssued, issuedCount, recentIssued] = await Promise.all([
     getHighestQueueTicket({
       shiftDate: safeDateString,
       lorIdentity: normalizedLorIdentity
@@ -309,6 +379,11 @@ const getIssueStatus = async ({ user, lorIdentity = "lor1" } = {}) => {
     LorQueueTicket.countDocuments({
       shiftDate: safeDateString,
       lorIdentity: normalizedLorIdentity
+    }),
+    getLatestQueueTickets({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity,
+      limit: 5
     })
   ]);
   const sequence = Number(lastIssued?.queueNumber || 0);
@@ -319,6 +394,7 @@ const getIssueStatus = async ({ user, lorIdentity = "lor1" } = {}) => {
     nextQueueCode: formatQueueCode(sequence + 1),
     issuedCount: Number(issuedCount || 0),
     lastIssued: serializeTicket(lastIssued),
+    recentIssued: recentIssued.map((ticket) => serializeTicket(ticket)),
     shift: {
       start: shift.start.toISOString(),
       end: shift.end.toISOString(),
@@ -429,6 +505,13 @@ const callTicket = async ({
       throw new AppError("Kutilayotgan LOR navbat raqami topilmadi", 404);
     }
 
+    notifyQueueChanged({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity,
+      action: "called",
+      ticket
+    });
+
     return serializeTicket(ticket);
   } catch (error) {
     if (error?.code === 11000) {
@@ -438,7 +521,13 @@ const callTicket = async ({
   }
 };
 
-const cancelTicket = async ({ user, ticketId, lorIdentity = "lor1" } = {}) => {
+const cancelTicket = async ({
+  user,
+  ticketId,
+  lorIdentity = "lor1",
+  reason,
+  note
+} = {}) => {
   assertLorUser(user);
   assertObjectId(ticketId, "Navbat ID");
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
@@ -462,10 +551,27 @@ const cancelTicket = async ({ user, ticketId, lorIdentity = "lor1" } = {}) => {
     return serializeTicket(ticket);
   }
 
+  const safeReason = normalizeCancelReason(reason);
+  const safeNote = normalizeCancelNote(note);
+
   ticket.status = "cancelled";
+  ticket.cancelReason = safeReason;
+  ticket.cancelNote = safeNote;
+  ticket.cancelledBy = {
+    userId: user._id,
+    role: user.role,
+    name: user.name
+  };
   ticket.cancelledAt = new Date();
   ticket.completedAt = null;
   await ticket.save();
+
+  notifyQueueChanged({
+    shiftDate: safeDateString,
+    lorIdentity: normalizedLorIdentity,
+    action: "cancelled",
+    ticket
+  });
 
   return serializeTicket(ticket);
 };
@@ -579,6 +685,7 @@ module.exports = {
   getActiveTicketForCheckout,
   completeTicketWithCheck,
   getCurrentTicketForTv,
+  notifyQueueChanged,
   normalizeLorIdentity,
   serializeTicket
 };

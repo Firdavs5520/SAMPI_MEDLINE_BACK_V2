@@ -667,8 +667,8 @@ const callLorQueueTicket = async ({
     specialistName
   });
 
-const cancelLorQueueTicket = async ({ user, ticketId, lorIdentity }) =>
-  lorQueueService.cancelTicket({ user, ticketId, lorIdentity });
+const cancelLorQueueTicket = async ({ user, ticketId, lorIdentity, reason, note }) =>
+  lorQueueService.cancelTicket({ user, ticketId, lorIdentity, reason, note });
 
 const createRoleSpecialist = async ({ name, user }) => {
   const type = assertSpecialistRole(user);
@@ -1120,7 +1120,7 @@ const createLorCheckout = async ({
       { session }
     );
 
-    await lorQueueService.completeTicketWithCheck({
+    const completedTicket = await lorQueueService.completeTicketWithCheck({
       ticketId: activeTicket._id,
       user,
       patient: normalizedPatient,
@@ -1129,6 +1129,12 @@ const createLorCheckout = async ({
     });
 
     await session.commitTransaction();
+    lorQueueService.notifyQueueChanged({
+      shiftDate: completedTicket.shiftDate,
+      lorIdentity: normalizedLorIdentity,
+      action: "completed",
+      ticket: completedTicket
+    });
     return { check, idempotentReplay: false };
   } catch (error) {
     await safeAbortTransaction(session);

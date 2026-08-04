@@ -23,7 +23,18 @@ const getLorQueue = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data });
 });
 
+const streamLorQueue = asyncHandler(async (req, res) => {
+  await tvService.streamLorQueue({
+    req,
+    res,
+    date: req.query.date,
+    lorIdentity: req.query.lorIdentity,
+    limit: req.query.limit
+  });
+});
+
 module.exports = {
   setLorCurrentPatient,
-  getLorQueue
+  getLorQueue,
+  streamLorQueue
 };

@@ -106,6 +106,33 @@ const lorQueueTicketSchema = new mongoose.Schema(
       default: null,
       index: true
     },
+    cancelReason: {
+      type: String,
+      enum: ["", "patient_absent", "wrong_direction", "patient_left", "other"],
+      trim: true,
+      default: ""
+    },
+    cancelNote: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: ""
+    },
+    cancelledBy: {
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      },
+      role: {
+        type: String,
+        enum: ["lor"]
+      },
+      name: {
+        type: String,
+        trim: true,
+        default: ""
+      }
+    },
     checkRef: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Check",
@@ -138,5 +165,6 @@ lorQueueTicketSchema.index(
   { unique: true, partialFilterExpression: { status: "in_progress" } }
 );
 lorQueueTicketSchema.index({ lorIdentity: 1, status: 1, createdAt: 1 });
+lorQueueTicketSchema.index({ shiftDate: 1, lorIdentity: 1, status: 1, cancelReason: 1 });
 
 module.exports = mongoose.model("LorQueueTicket", lorQueueTicketSchema);
