@@ -8,6 +8,7 @@ const usageRoutes = require("./routes/usageRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const cashierRoutes = require("./routes/cashierRoutes");
 const reporterRoutes = require("./routes/reporterRoutes");
+const tvRoutes = require("./routes/tvRoutes");
 const { getHealthPayload } = require("./services/monitoringService");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
@@ -73,6 +74,7 @@ app.use("/api/usage", usageRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/cashier", cashierRoutes);
 app.use("/api/reporter", reporterRoutes);
+app.use("/api/tv", tvRoutes);
 
 // Backward-compatible routes (for old frontend builds without `/api` prefix).
 app.use("/auth", authRoutes);
@@ -82,6 +84,7 @@ app.use("/usage", usageRoutes);
 app.use("/reports", reportRoutes);
 app.use("/cashier", cashierRoutes);
 app.use("/reporter", reporterRoutes);
+app.use("/tv", tvRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

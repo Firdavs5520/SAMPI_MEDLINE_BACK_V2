@@ -30,6 +30,11 @@ const defaultUsers = [
     name: "Reporter",
     email: "reporter@mail.com",
     role: "reporter"
+  },
+  {
+    name: "TV navbat",
+    email: "tv@mail.com",
+    role: "tv"
   }
 ];
 
