@@ -89,6 +89,12 @@ const cashierEntrySchema = new mongoose.Schema(
       enum: ["lor1", "lor2", null],
       default: null
     },
+    checkLorQueueCode: {
+      type: String,
+      trim: true,
+      default: "",
+      index: true
+    },
     checkCreatedAt: {
       type: Date,
       default: null

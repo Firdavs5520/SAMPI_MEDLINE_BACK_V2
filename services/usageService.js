@@ -8,6 +8,7 @@ const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const CashierSpecialist = require("../models/CashierSpecialist");
 const AppError = require("../utils/AppError");
+const lorQueueService = require("./lorQueueService");
 const NURSE_PRICE_TIERS = ["first", "second", "third"];
 const ROLE_SPECIALIST_TYPES = ["nurse", "lor"];
 const SERVICE_PRICE_TIER_LABELS = {
@@ -543,6 +544,7 @@ const getMyChecks = async ({
     const dateRange = parseSearchDateRange(safeSearch);
     const searchConditions = [
       { checkId: { $regex: pattern, $options: "i" } },
+      { "lorQueue.queueCode": { $regex: pattern, $options: "i" } },
       { "patient.fullName": { $regex: pattern, $options: "i" } },
       { "patient.firstName": { $regex: pattern, $options: "i" } },
       { "patient.lastName": { $regex: pattern, $options: "i" } }
@@ -646,6 +648,27 @@ const getRoleSpecialists = async ({ user, search = "" }) => {
 
   return CashierSpecialist.find(filter).sort({ name: 1, createdAt: -1 });
 };
+
+const getLorQueueTickets = async ({ user, lorIdentity, limit }) =>
+  lorQueueService.getLorTickets({ user, lorIdentity, limit });
+
+const callLorQueueTicket = async ({
+  user,
+  ticketId,
+  lorIdentity,
+  specialistId,
+  specialistName
+}) =>
+  lorQueueService.callTicket({
+    user,
+    ticketId,
+    lorIdentity,
+    specialistId,
+    specialistName
+  });
+
+const cancelLorQueueTicket = async ({ user, ticketId, lorIdentity }) =>
+  lorQueueService.cancelTicket({ user, ticketId, lorIdentity });
 
 const createRoleSpecialist = async ({ name, user }) => {
   const type = assertSpecialistRole(user);
@@ -970,6 +993,7 @@ const createLorCheckout = async ({
   lorIdentity,
   specialistId,
   specialistName,
+  queueTicketId,
   idempotencyKey,
   user
 }) => {
@@ -1019,6 +1043,13 @@ const createLorCheckout = async ({
   session.startTransaction();
 
   try {
+    const activeTicket = await lorQueueService.getActiveTicketForCheckout({
+      ticketId: queueTicketId,
+      user,
+      lorIdentity: normalizedLorIdentity,
+      specialistId: specialist.specialistId,
+      session
+    });
     let total = 0;
     const checkItems = [];
     const serviceUsageDocs = [];
@@ -1075,6 +1106,10 @@ const createLorCheckout = async ({
           items: checkItems,
           total: Number(total.toFixed(2)),
           patient: normalizedPatient,
+          lorQueue: {
+            ticketId: activeTicket._id,
+            queueCode: activeTicket.queueCode
+          },
           createdBy: buildCreatedByPayload(user, {
             lorIdentity: normalizedLorIdentity,
             displayName: specialist.specialistName,
@@ -1084,6 +1119,14 @@ const createLorCheckout = async ({
       ],
       { session }
     );
+
+    await lorQueueService.completeTicketWithCheck({
+      ticketId: activeTicket._id,
+      user,
+      patient: normalizedPatient,
+      check,
+      session
+    });
 
     await session.commitTransaction();
     return { check, idempotentReplay: false };
@@ -1112,6 +1155,9 @@ module.exports = {
   createNurseCheckout,
   createLorCheckout,
   getMyChecks,
+  getLorQueueTickets,
+  callLorQueueTicket,
+  cancelLorQueueTicket,
   getRoleSpecialists,
   createRoleSpecialist,
   updateRoleSpecialist,

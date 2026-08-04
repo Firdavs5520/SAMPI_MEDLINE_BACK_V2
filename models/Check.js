@@ -110,6 +110,18 @@ const checkSchema = new mongoose.Schema(
         immutable: true
       }
     },
+    lorQueue: {
+      ticketId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "LorQueueTicket",
+        immutable: true
+      },
+      queueCode: {
+        type: String,
+        trim: true,
+        immutable: true
+      }
+    },
     createdAt: {
       type: Date,
       default: Date.now,
@@ -137,5 +149,7 @@ checkSchema.index(
   { "createdBy.userId": 1, idempotencyKey: 1 },
   { unique: true, sparse: true }
 );
+checkSchema.index({ "lorQueue.queueCode": 1, "createdBy.role": 1, createdAt: -1 });
+checkSchema.index({ "lorQueue.ticketId": 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Check", checkSchema);

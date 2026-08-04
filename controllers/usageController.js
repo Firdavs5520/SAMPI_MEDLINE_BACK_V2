@@ -96,6 +96,7 @@ const createLorCheckout = asyncHandler(async (req, res) => {
     lorIdentity: req.body.lorIdentity,
     specialistId: req.body.specialistId,
     specialistName: req.body.specialistName,
+    queueTicketId: req.body.queueTicketId,
     idempotencyKey: getIdempotencyKey(req),
     user: req.user
   });
@@ -103,6 +104,47 @@ const createLorCheckout = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     data: result
+  });
+});
+
+const getLorQueueTickets = asyncHandler(async (req, res) => {
+  const data = await usageService.getLorQueueTickets({
+    user: req.user,
+    lorIdentity: req.query.lorIdentity,
+    limit: req.query.limit
+  });
+
+  res.status(200).json({
+    success: true,
+    data
+  });
+});
+
+const callLorQueueTicket = asyncHandler(async (req, res) => {
+  const data = await usageService.callLorQueueTicket({
+    user: req.user,
+    ticketId: req.params.id,
+    lorIdentity: req.body.lorIdentity,
+    specialistId: req.body.specialistId,
+    specialistName: req.body.specialistName
+  });
+
+  res.status(200).json({
+    success: true,
+    data
+  });
+});
+
+const cancelLorQueueTicket = asyncHandler(async (req, res) => {
+  const data = await usageService.cancelLorQueueTicket({
+    user: req.user,
+    ticketId: req.params.id,
+    lorIdentity: req.body.lorIdentity
+  });
+
+  res.status(200).json({
+    success: true,
+    data
   });
 });
 
@@ -161,6 +203,9 @@ module.exports = {
   createCheckout,
   createLorCheckout,
   getMyChecks,
+  getLorQueueTickets,
+  callLorQueueTicket,
+  cancelLorQueueTicket,
   getRoleSpecialists,
   createRoleSpecialist,
   updateRoleSpecialist,

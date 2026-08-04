@@ -9,6 +9,7 @@ router.use(protect, allowRoles("cashier", "manager"));
 
 router.get("/settings", cashierController.getSettings);
 router.put("/settings", allowRoles("cashier"), cashierController.updateSettings);
+router.post("/lor-queue-tickets", allowRoles("cashier"), cashierController.issueLorQueueTicket);
 router.get("/entries", cashierController.getEntries);
 router.get("/summary", cashierController.getSummary);
 router.get("/pending-checks", cashierController.getPendingChecks);

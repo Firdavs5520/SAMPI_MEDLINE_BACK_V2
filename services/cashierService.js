@@ -3,6 +3,7 @@ const CashierSpecialist = require("../models/CashierSpecialist");
 const Check = require("../models/Check");
 const AppError = require("../utils/AppError");
 const cashierSettingsService = require("./cashierSettingsService");
+const lorQueueService = require("./lorQueueService");
 
 const DEPARTMENTS = ["lor", "nurse", "procedure"];
 const SPECIALIST_TYPES = ["nurse", "lor"];
@@ -233,7 +234,8 @@ const buildSearchCondition = (safeSearch) => {
     { specialistName: regex },
     { patientPhone: regex },
     { note: regex },
-    { checkCode: regex }
+    { checkCode: regex },
+    { checkLorQueueCode: regex }
   ];
 
   const parsedDateRange = parseSearchDateRange(safeSearch);
@@ -305,6 +307,13 @@ const getSettings = async ({ user }) => cashierSettingsService.getSettings({ use
 
 const updateSettings = async ({ payload, user }) =>
   cashierSettingsService.updateSettings({ payload, user });
+
+const issueLorQueueTicket = async ({ payload = {}, user }) =>
+  lorQueueService.issueTicket({
+    user,
+    lorIdentity: payload.lorIdentity || "lor1",
+    idempotencyKey: payload.idempotencyKey
+  });
 
 const buildListFilter = async ({
   date,
@@ -529,6 +538,7 @@ const createEntryFromCheck = async ({ payload, user }) => {
     checkCreatorRole: creatorRole,
     checkCreatorName: specialistName,
     checkLorIdentity: check?.createdBy?.lorIdentity || null,
+    checkLorQueueCode: String(check?.lorQueue?.queueCode || "").trim(),
     checkCreatedAt: check?.createdAt || null,
     department: creatorRole,
     patientName,
@@ -567,6 +577,7 @@ const getPendingChecks = async ({ user, role = "all", search = "" }) => {
 
     filter.$or = [
       { checkId: regex },
+      { "lorQueue.queueCode": regex },
       { "patient.fullName": regex },
       { "patient.firstName": regex },
       { "patient.lastName": regex },
@@ -604,6 +615,7 @@ const getPendingChecks = async ({ user, role = "all", search = "" }) => {
     .map((check) => ({
       _id: check._id,
       checkId: check.checkId,
+      queueCode: String(check?.lorQueue?.queueCode || "").trim(),
       creatorRole: check.createdBy?.role || "",
       creatorName: check.createdBy?.name || "-",
       lorIdentity: check.createdBy?.lorIdentity || "",
@@ -1046,6 +1058,7 @@ const deleteEntry = async ({ entryId, user }) => {
 module.exports = {
   getSettings,
   updateSettings,
+  issueLorQueueTicket,
   getEntries,
   getSummary,
   getPendingChecks,

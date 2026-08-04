@@ -18,6 +18,15 @@ const updateSettings = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, data });
 });
 
+const issueLorQueueTicket = asyncHandler(async (req, res) => {
+  const data = await cashierService.issueLorQueueTicket({
+    payload: req.body,
+    user: req.user
+  });
+
+  res.status(201).json({ success: true, data });
+});
+
 const getEntries = asyncHandler(async (req, res) => {
   const data = await cashierService.getEntries({
     user: req.user,
@@ -127,6 +136,7 @@ const deleteSpecialist = asyncHandler(async (req, res) => {
 module.exports = {
   getSettings,
   updateSettings,
+  issueLorQueueTicket,
   getEntries,
   getSummary,
   getPendingChecks,
