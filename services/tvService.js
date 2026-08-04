@@ -38,7 +38,7 @@ const normalizeLorIdentityFilter = (value) => {
   const safe = String(value || "all").trim().toLowerCase();
   if (!safe || safe === "all") return "all";
   if (!LOR_IDENTITIES.includes(safe)) {
-    throw new AppError("LOR-2 arxivda. TV navbat faqat LOR-1 uchun ishlaydi", 400);
+    throw new AppError("TV navbat faqat faol LOR uchun ishlaydi", 400);
   }
   return safe;
 };
@@ -50,15 +50,13 @@ const normalizeLimit = (value) => {
 };
 
 const getRoomLabel = (identity) => {
-  if (identity === "lor1") return "LOR-1";
   return "LOR";
 };
 
 const getQueueCode = (entry, index) => {
   const raw = String(entry?.checkCode || entry?._id || "").replace(/[^a-zA-Z0-9]/g, "");
   const suffix = (raw.slice(-4) || String(index + 1).padStart(4, "0")).toUpperCase();
-  const roomPrefix = entry?.checkLorIdentity === "lor1" ? "L1" : "LR";
-  return `${roomPrefix}-${suffix}`;
+  return `N-${suffix}`;
 };
 
 const toIso = (value) => {
