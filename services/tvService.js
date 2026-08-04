@@ -1,4 +1,4 @@
-const CashierEntry = require("../models/CashierEntry");
+const LorCurrentPatient = require("../models/LorCurrentPatient");
 const cashierSettingsService = require("./cashierSettingsService");
 const AppError = require("../utils/AppError");
 
@@ -49,14 +49,35 @@ const normalizeLimit = (value) => {
   return Math.min(MAX_LIMIT, Math.max(1, Math.floor(parsed)));
 };
 
-const getRoomLabel = (identity) => {
-  return "LOR";
+const normalizePatient = (patient) => {
+  const firstName = String(patient?.firstName || "").trim();
+  const lastName = String(patient?.lastName || "").trim();
+
+  if (!firstName || !lastName) {
+    throw new AppError("Bemorning ismi va familiyasi majburiy", 400);
+  }
+
+  return {
+    firstName,
+    lastName,
+    fullName: `${firstName} ${lastName}`.trim()
+  };
 };
 
-const getQueueCode = (entry, index) => {
-  const raw = String(entry?.checkCode || entry?._id || "").replace(/[^a-zA-Z0-9]/g, "");
-  const suffix = (raw.slice(-4) || String(index + 1).padStart(4, "0")).toUpperCase();
-  return `N-${suffix}`;
+const normalizeDoctorName = (value) => {
+  const safe = String(value || "").trim();
+  if (!safe) {
+    throw new AppError("Doktor nomi majburiy", 400);
+  }
+  return safe;
+};
+
+const createQueueCode = async ({ start, end }) => {
+  const count = await LorCurrentPatient.countDocuments({
+    acceptedAt: { $gte: start, $lte: end }
+  });
+
+  return `N-${String(count + 1).padStart(3, "0")}`;
 };
 
 const toIso = (value) => {
@@ -70,113 +91,95 @@ const getMinutesSince = (value, now = new Date()) => {
   return Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60000));
 };
 
-const serializeEntry = (entry, index, roomIndex, now) => ({
-  id: String(entry._id),
-  queueCode: getQueueCode(entry, index),
-  roomId: entry.checkLorIdentity || "lor",
-  roomLabel: getRoomLabel(entry.checkLorIdentity),
-  doctorLabel: String(entry.specialistName || "").trim() || getRoomLabel(entry.checkLorIdentity),
-  acceptedAt: toIso(entry.entryDate || entry.createdAt),
-  createdAt: toIso(entry.createdAt),
-  minutesSinceAccepted: getMinutesSince(entry.entryDate || entry.createdAt, now),
-  position: index + 1,
-  roomPosition: roomIndex + 1
+const serializeCurrentPatient = (row, now) => ({
+  id: String(row._id),
+  queueCode: String(row.queueCode || "").trim(),
+  doctorLabel: String(row?.doctor?.name || "").trim() || "LOR",
+  acceptedAt: toIso(row.acceptedAt || row.createdAt),
+  createdAt: toIso(row.createdAt),
+  minutesSinceAccepted: getMinutesSince(row.acceptedAt || row.createdAt, now)
 });
 
-const getLatestTimestamp = (entries) => {
-  const latest = entries.reduce((max, entry) => {
-    const candidates = [entry.entryDate, entry.createdAt, entry.updatedAt]
-      .map((value) => (value ? new Date(value).getTime() : 0))
-      .filter(Number.isFinite);
-    return Math.max(max, ...candidates);
-  }, 0);
-
-  return latest ? new Date(latest).toISOString() : null;
-};
-
-const getLorQueue = async ({ date, lorIdentity = "all", limit = DEFAULT_LIMIT } = {}) => {
+const getTodayShiftRange = async (date) => {
   const safeDateString = normalizeDateString(date);
-  const safeLorIdentity = normalizeLorIdentityFilter(lorIdentity);
-  const safeLimit = normalizeLimit(limit);
-  const now = new Date();
   const shift = await cashierSettingsService.getShiftRange({
     dateString: safeDateString,
     dateParts: parseDateParts(safeDateString)
   });
+
+  return { safeDateString, shift };
+};
+
+const setLorCurrentPatient = async ({
+  user,
+  patient,
+  lorIdentity = "lor1",
+  specialistId,
+  specialistName
+}) => {
+  if (!user || user.role !== "lor") {
+    throw new AppError("Bu amal faqat LOR uchun", 403);
+  }
+
+  const normalizedLorIdentity = normalizeLorIdentityFilter(lorIdentity);
+  if (normalizedLorIdentity === "all") {
+    throw new AppError("LOR tanlovi majburiy", 400);
+  }
+
+  const normalizedPatient = normalizePatient(patient);
+  const doctorName = normalizeDoctorName(specialistName);
+  const { shift } = await getTodayShiftRange();
+  const queueCode = await createQueueCode({
+    start: shift.start,
+    end: shift.end
+  });
+
+  const row = await LorCurrentPatient.create({
+    queueCode,
+    lorIdentity: normalizedLorIdentity,
+    patient: normalizedPatient,
+    doctor: {
+      ...(specialistId ? { specialistId } : {}),
+      name: doctorName
+    },
+    acceptedBy: {
+      userId: user._id,
+      name: user.name,
+      role: user.role
+    },
+    acceptedAt: new Date()
+  });
+
+  return serializeCurrentPatient(row, new Date());
+};
+
+const getLorQueue = async ({ date, lorIdentity = "all", limit = DEFAULT_LIMIT } = {}) => {
+  const { safeDateString, shift } = await getTodayShiftRange(date);
+  const safeLorIdentity = normalizeLorIdentityFilter(lorIdentity);
+  const safeLimit = normalizeLimit(limit);
+  const now = new Date();
   const filter = {
-    department: "lor",
-    specialistType: "lor",
-    checkLorIdentity: "lor1",
-    entryDate: { $gte: shift.start, $lte: shift.end }
+    lorIdentity: "lor1",
+    acceptedAt: { $gte: shift.start, $lte: shift.end }
   };
 
   if (safeLorIdentity !== "all") {
-    filter.checkLorIdentity = safeLorIdentity;
+    filter.lorIdentity = safeLorIdentity;
   }
 
-  const entries = await CashierEntry.find(filter)
-    .select("checkCode checkLorIdentity specialistName entryDate createdAt updatedAt")
-    .sort({ entryDate: 1, createdAt: 1 })
-    .lean();
-
-  const roomPositions = new Map();
-  const serializedAscending = entries.map((entry, index) => {
-    const roomId = entry.checkLorIdentity || "lor";
-    const currentRoomIndex = roomPositions.get(roomId) || 0;
-    roomPositions.set(roomId, currentRoomIndex + 1);
-    return serializeEntry(entry, index, currentRoomIndex, now);
-  });
-  const newestFirst = [...serializedAscending].reverse();
-  const roomMap = new Map();
-
-  for (const row of newestFirst) {
-    const roomId = row.roomId;
-    if (!roomMap.has(roomId)) {
-      roomMap.set(roomId, {
-        id: roomId,
-        label: row.roomLabel,
-        current: null,
-        recent: [],
-        total: 0
-      });
-    }
-
-    const room = roomMap.get(roomId);
-    room.total += 1;
-    if (!room.current) {
-      room.current = row;
-    } else {
-      room.recent.push(row);
-    }
-  }
-
-  const rooms = LOR_IDENTITIES.map((identity) => {
-    const existing = roomMap.get(identity);
-    return (
-      existing || {
-        id: identity,
-        label: getRoomLabel(identity),
-        current: null,
-        recent: [],
-        total: 0
-      }
-    );
-  }).filter((room) => safeLorIdentity === "all" || room.id === safeLorIdentity);
-
-  const unknownRoom = roomMap.get("lor");
-  if (unknownRoom && safeLorIdentity === "all") {
-    rooms.push(unknownRoom);
-  }
-
-  const current = newestFirst[0] || null;
-  const lastChangedAt = getLatestTimestamp(entries);
+  const [currentRow, totalActive] = await Promise.all([
+    LorCurrentPatient.findOne(filter).sort({ acceptedAt: -1, createdAt: -1 }).lean(),
+    LorCurrentPatient.countDocuments(filter)
+  ]);
+  const current = currentRow ? serializeCurrentPatient(currentRow, now) : null;
+  const lastChangedAt = current?.acceptedAt || null;
 
   return {
     date: safeDateString,
     generatedAt: now.toISOString(),
     lastChangedAt,
     announcementKey: current ? `${current.id}:${current.acceptedAt || ""}:${lastChangedAt || ""}` : "",
-    totalActive: entries.length,
+    totalActive,
     limit: safeLimit,
     shift: {
       start: shift.start.toISOString(),
@@ -185,11 +188,11 @@ const getLorQueue = async ({ date, lorIdentity = "all", limit = DEFAULT_LIMIT } 
       toLabel: shift.toLabel
     },
     current,
-    rooms,
-    entries: newestFirst.slice(0, safeLimit)
+    entries: current ? [current].slice(0, safeLimit) : []
   };
 };
 
 module.exports = {
+  setLorCurrentPatient,
   getLorQueue
 };
