@@ -315,6 +315,12 @@ const issueLorQueueTicket = async ({ payload = {}, user }) =>
     idempotencyKey: payload.idempotencyKey
   });
 
+const getLorQueueTicketStatus = async ({ user, lorIdentity = "lor1" }) =>
+  lorQueueService.getIssueStatus({
+    user,
+    lorIdentity
+  });
+
 const buildListFilter = async ({
   date,
   department,
@@ -1059,6 +1065,7 @@ module.exports = {
   getSettings,
   updateSettings,
   issueLorQueueTicket,
+  getLorQueueTicketStatus,
   getEntries,
   getSummary,
   getPendingChecks,

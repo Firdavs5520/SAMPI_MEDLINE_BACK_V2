@@ -260,6 +260,39 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
   throw new AppError("LOR navbat raqamini yaratib bo'lmadi", 500);
 };
 
+const getIssueStatus = async ({ user, lorIdentity = "lor1" } = {}) => {
+  assertCashierUser(user);
+  const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
+  const { safeDateString, shift } = await getTodayShiftRange();
+  const counter = await LorQueueCounter.findOne({
+    key: buildCounterKey({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity
+    })
+  }).lean();
+  const lastIssued = await LorQueueTicket.findOne({
+    shiftDate: safeDateString,
+    lorIdentity: normalizedLorIdentity
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  const sequence = Number(counter?.sequence || 0);
+
+  return {
+    date: safeDateString,
+    lorIdentity: normalizedLorIdentity,
+    nextQueueCode: formatQueueCode(sequence + 1),
+    issuedCount: sequence,
+    lastIssued: serializeTicket(lastIssued),
+    shift: {
+      start: shift.start.toISOString(),
+      end: shift.end.toISOString(),
+      fromLabel: shift.fromLabel,
+      toLabel: shift.toLabel
+    }
+  };
+};
+
 const getLorTickets = async ({ user, lorIdentity = "lor1", limit = TICKET_LIMIT } = {}) => {
   assertLorUser(user);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
@@ -504,6 +537,7 @@ const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1" } = {}) => {
 
 module.exports = {
   issueTicket,
+  getIssueStatus,
   getLorTickets,
   callTicket,
   cancelTicket,

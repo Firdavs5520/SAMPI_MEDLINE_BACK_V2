@@ -27,6 +27,15 @@ const issueLorQueueTicket = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data });
 });
 
+const getLorQueueTicketStatus = asyncHandler(async (req, res) => {
+  const data = await cashierService.getLorQueueTicketStatus({
+    user: req.user,
+    lorIdentity: req.query.lorIdentity || "lor1"
+  });
+
+  res.status(200).json({ success: true, data });
+});
+
 const getEntries = asyncHandler(async (req, res) => {
   const data = await cashierService.getEntries({
     user: req.user,
@@ -137,6 +146,7 @@ module.exports = {
   getSettings,
   updateSettings,
   issueLorQueueTicket,
+  getLorQueueTicketStatus,
   getEntries,
   getSummary,
   getPendingChecks,
