@@ -176,26 +176,56 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
 
 const buildCounterKey = ({ shiftDate, lorIdentity }) => `${shiftDate}:${lorIdentity}`;
 
-const nextQueueCode = async ({ shiftDate, lorIdentity }) => {
-  const key = buildCounterKey({ shiftDate, lorIdentity });
-  const counter = await LorQueueCounter.findOneAndUpdate(
-    { key },
+const getHighestQueueTicket = async ({ shiftDate, lorIdentity }) => {
+  const [ticket] = await LorQueueTicket.aggregate([
     {
-      $inc: { sequence: 1 },
-      $setOnInsert: {
-        key,
+      $match: {
         shiftDate,
         lorIdentity
       }
     },
     {
-      new: true,
+      $addFields: {
+        queueNumber: {
+          $convert: {
+            input: "$queueCode",
+            to: "int",
+            onError: 0,
+            onNull: 0
+          }
+        }
+      }
+    },
+    { $sort: { queueNumber: -1, createdAt: -1, _id: -1 } },
+    { $limit: 1 }
+  ]);
+
+  return ticket || null;
+};
+
+const getNextQueueNumber = async ({ shiftDate, lorIdentity }) => {
+  const highestTicket = await getHighestQueueTicket({ shiftDate, lorIdentity });
+  const highestQueueNumber = Number(highestTicket?.queueNumber || 0);
+
+  return Math.max(0, highestQueueNumber) + 1;
+};
+
+const syncCounterToIssuedQueue = async ({ shiftDate, lorIdentity, queueNumber }) => {
+  const key = buildCounterKey({ shiftDate, lorIdentity });
+  await LorQueueCounter.findOneAndUpdate(
+    { key },
+    {
+      $set: {
+        sequence: queueNumber,
+        shiftDate,
+        lorIdentity
+      }
+    },
+    {
       upsert: true,
       setDefaultsOnInsert: true
     }
   );
-
-  return formatQueueCode(counter.sequence);
 };
 
 const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) => {
@@ -217,11 +247,12 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
     }
   }
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const queueCode = await nextQueueCode({
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const queueNumber = await getNextQueueNumber({
       shiftDate: safeDateString,
       lorIdentity: normalizedLorIdentity
     });
+    const queueCode = formatQueueCode(queueNumber);
 
     try {
       const ticket = await LorQueueTicket.create({
@@ -234,6 +265,12 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
           role: user.role,
           name: user.name
         }
+      });
+
+      await syncCounterToIssuedQueue({
+        shiftDate: safeDateString,
+        lorIdentity: normalizedLorIdentity,
+        queueNumber
       });
 
       return serializeTicket(ticket);
@@ -264,25 +301,23 @@ const getIssueStatus = async ({ user, lorIdentity = "lor1" } = {}) => {
   assertCashierUser(user);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
   const { safeDateString, shift } = await getTodayShiftRange();
-  const counter = await LorQueueCounter.findOne({
-    key: buildCounterKey({
+  const [lastIssued, issuedCount] = await Promise.all([
+    getHighestQueueTicket({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity
+    }),
+    LorQueueTicket.countDocuments({
       shiftDate: safeDateString,
       lorIdentity: normalizedLorIdentity
     })
-  }).lean();
-  const lastIssued = await LorQueueTicket.findOne({
-    shiftDate: safeDateString,
-    lorIdentity: normalizedLorIdentity
-  })
-    .sort({ createdAt: -1 })
-    .lean();
-  const sequence = Number(counter?.sequence || 0);
+  ]);
+  const sequence = Number(lastIssued?.queueNumber || 0);
 
   return {
     date: safeDateString,
     lorIdentity: normalizedLorIdentity,
     nextQueueCode: formatQueueCode(sequence + 1),
-    issuedCount: sequence,
+    issuedCount: Number(issuedCount || 0),
     lastIssued: serializeTicket(lastIssued),
     shift: {
       start: shift.start.toISOString(),
