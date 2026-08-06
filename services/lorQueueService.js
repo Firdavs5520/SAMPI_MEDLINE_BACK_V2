@@ -208,11 +208,29 @@ const shouldDropLegacyQueueCodeIndex = (index) => {
   return fields.includes("queueCode") && !fields.includes("shiftDate");
 };
 
+const isSingleFieldIndex = (index, field) => {
+  if (!index?.key) return false;
+  const fields = Object.keys(index.key);
+  return fields.length === 1 && fields[0] === field && index.key[field] === 1;
+};
+
+const hasObjectIdPartialFilter = (index, field) => {
+  const type = index?.partialFilterExpression?.[field]?.$type;
+  return type === "objectId" || type === 7;
+};
+
+const shouldDropLegacyCheckRefIndex = (index) =>
+  index?.unique &&
+  isSingleFieldIndex(index, "checkRef") &&
+  !hasObjectIdPartialFilter(index, "checkRef");
+
 const ensureQueueTicketIndexesReady = async () => {
   if (!queueIndexMaintenancePromise) {
     queueIndexMaintenancePromise = (async () => {
       const indexes = await LorQueueTicket.collection.indexes();
-      const legacyIndexes = indexes.filter(shouldDropLegacyQueueCodeIndex);
+      const legacyIndexes = indexes.filter(
+        (index) => shouldDropLegacyQueueCodeIndex(index) || shouldDropLegacyCheckRefIndex(index)
+      );
 
       for (const index of legacyIndexes) {
         if (index.name && index.name !== "_id_") {
@@ -225,6 +243,16 @@ const ensureQueueTicketIndexesReady = async () => {
         {
           unique: true,
           name: "shiftDate_1_lorIdentity_1_queueCode_1"
+        }
+      );
+      await LorQueueTicket.collection.createIndex(
+        { checkRef: 1 },
+        {
+          unique: true,
+          partialFilterExpression: {
+            checkRef: { $type: "objectId" }
+          },
+          name: "checkRef_1"
         }
       );
     })().catch((error) => {
@@ -447,6 +475,7 @@ const getIssueStatus = async ({ user, lorIdentity = "lor1" } = {}) => {
   assertCashierUser(user);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
   const { safeDateString, shift } = await getTodayShiftRange();
+  await ensureQueueTicketIndexesReady();
   const [lastIssued, issuedCount, recentIssued] = await Promise.all([
     getHighestQueueTicket({
       shiftDate: safeDateString,

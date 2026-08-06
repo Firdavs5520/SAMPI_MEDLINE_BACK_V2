@@ -135,8 +135,7 @@ const lorQueueTicketSchema = new mongoose.Schema(
     },
     checkRef: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Check",
-      default: null
+      ref: "Check"
     },
     checkCode: {
       type: String,
@@ -159,7 +158,15 @@ lorQueueTicketSchema.index(
     }
   }
 );
-lorQueueTicketSchema.index({ checkRef: 1 }, { unique: true, sparse: true });
+lorQueueTicketSchema.index(
+  { checkRef: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      checkRef: { $type: "objectId" }
+    }
+  }
+);
 lorQueueTicketSchema.index(
   { shiftDate: 1, lorIdentity: 1, status: 1 },
   { unique: true, partialFilterExpression: { status: "in_progress" } }
