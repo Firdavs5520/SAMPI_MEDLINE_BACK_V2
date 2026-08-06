@@ -225,12 +225,12 @@ const getHighestQueueTicket = async ({ shiftDate, lorIdentity }) => {
   return ticket || null;
 };
 
-const getNextQueueNumber = async ({ shiftDate, lorIdentity }) => {
+const getHighestQueueNumber = async ({ shiftDate, lorIdentity }) => {
   const highestTicket = await getHighestQueueTicket({ shiftDate, lorIdentity });
-  const highestQueueNumber = Number(highestTicket?.queueNumber || 0);
-
-  return Math.max(0, highestQueueNumber) + 1;
+  return Math.max(0, Number(highestTicket?.queueNumber || 0));
 };
+
+const isDuplicateKeyError = (error) => error?.code === 11000;
 
 const getLatestQueueTickets = async ({ shiftDate, lorIdentity, limit = 5 }) => {
   const safeLimit = Math.min(20, Math.max(1, Math.floor(Number(limit) || 5)));
@@ -278,8 +278,10 @@ const syncCounterToIssuedQueue = async ({ shiftDate, lorIdentity, queueNumber })
   await LorQueueCounter.findOneAndUpdate(
     { key },
     {
+      $max: {
+        sequence: queueNumber
+      },
       $set: {
-        sequence: queueNumber,
         shiftDate,
         lorIdentity
       }
@@ -289,6 +291,43 @@ const syncCounterToIssuedQueue = async ({ shiftDate, lorIdentity, queueNumber })
       setDefaultsOnInsert: true
     }
   );
+};
+
+const reserveNextQueueNumber = async ({ shiftDate, lorIdentity }) => {
+  const key = buildCounterKey({ shiftDate, lorIdentity });
+  const highestQueueNumber = await getHighestQueueNumber({ shiftDate, lorIdentity });
+
+  try {
+    await syncCounterToIssuedQueue({
+      shiftDate,
+      lorIdentity,
+      queueNumber: highestQueueNumber
+    });
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) {
+      throw error;
+    }
+  }
+
+  const counter = await LorQueueCounter.findOneAndUpdate(
+    { key },
+    {
+      $inc: {
+        sequence: 1
+      },
+      $set: {
+        shiftDate,
+        lorIdentity
+      }
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    }
+  ).lean();
+
+  return Number(counter?.sequence || highestQueueNumber + 1);
 };
 
 const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) => {
@@ -311,7 +350,7 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
   }
 
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    const queueNumber = await getNextQueueNumber({
+    const queueNumber = await reserveNextQueueNumber({
       shiftDate: safeDateString,
       lorIdentity: normalizedLorIdentity
     });
@@ -345,7 +384,7 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
 
       return serializeTicket(ticket);
     } catch (error) {
-      if (error?.code !== 11000) {
+      if (!isDuplicateKeyError(error)) {
         throw error;
       }
 
