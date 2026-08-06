@@ -15,6 +15,7 @@ const CANCEL_REASONS = new Set([
   "patient_left",
   "other"
 ]);
+let queueIndexMaintenancePromise = null;
 
 const toTashkentDateString = (date = new Date()) =>
   new Date(date.getTime() + TASHKENT_UTC_OFFSET_HOURS * 60 * 60 * 1000)
@@ -198,6 +199,43 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
 
 const buildCounterKey = ({ shiftDate, lorIdentity }) => `${shiftDate}:${lorIdentity}`;
 
+const isDuplicateKeyError = (error) => error?.code === 11000;
+
+const shouldDropLegacyQueueCodeIndex = (index) => {
+  if (!index?.unique || !index?.key) return false;
+
+  const fields = Object.keys(index.key);
+  return fields.includes("queueCode") && !fields.includes("shiftDate");
+};
+
+const ensureQueueTicketIndexesReady = async () => {
+  if (!queueIndexMaintenancePromise) {
+    queueIndexMaintenancePromise = (async () => {
+      const indexes = await LorQueueTicket.collection.indexes();
+      const legacyIndexes = indexes.filter(shouldDropLegacyQueueCodeIndex);
+
+      for (const index of legacyIndexes) {
+        if (index.name && index.name !== "_id_") {
+          await LorQueueTicket.collection.dropIndex(index.name);
+        }
+      }
+
+      await LorQueueTicket.collection.createIndex(
+        { shiftDate: 1, lorIdentity: 1, queueCode: 1 },
+        {
+          unique: true,
+          name: "shiftDate_1_lorIdentity_1_queueCode_1"
+        }
+      );
+    })().catch((error) => {
+      queueIndexMaintenancePromise = null;
+      throw error;
+    });
+  }
+
+  return queueIndexMaintenancePromise;
+};
+
 const getHighestQueueTicket = async ({ shiftDate, lorIdentity }) => {
   const [ticket] = await LorQueueTicket.aggregate([
     {
@@ -229,8 +267,6 @@ const getHighestQueueNumber = async ({ shiftDate, lorIdentity }) => {
   const highestTicket = await getHighestQueueTicket({ shiftDate, lorIdentity });
   return Math.max(0, Number(highestTicket?.queueNumber || 0));
 };
-
-const isDuplicateKeyError = (error) => error?.code === 11000;
 
 const getLatestQueueTickets = async ({ shiftDate, lorIdentity, limit = 5 }) => {
   const safeLimit = Math.min(20, Math.max(1, Math.floor(Number(limit) || 5)));
@@ -335,6 +371,7 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
   const safeIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
   const { safeDateString } = await getTodayShiftRange();
+  await ensureQueueTicketIndexesReady();
 
   if (safeIdempotencyKey) {
     const existing = await LorQueueTicket.findOne({
