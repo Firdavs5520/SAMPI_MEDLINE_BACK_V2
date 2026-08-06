@@ -653,17 +653,28 @@ const completeTicketWithCheck = async ({
   return ticket;
 };
 
-const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1" } = {}) => {
+const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1", limit = 16 } = {}) => {
   const { safeDateString, shift } = await getTodayShiftRange(date);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
+  const safeLimit = normalizeLimit(limit);
   const now = new Date();
-  const current = await LorQueueTicket.findOne({
-    shiftDate: safeDateString,
-    lorIdentity: normalizedLorIdentity,
-    status: "in_progress"
-  })
-    .sort({ calledAt: -1, updatedAt: -1 })
-    .lean();
+  const [current, waiting] = await Promise.all([
+    LorQueueTicket.findOne({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity,
+      status: "in_progress"
+    })
+      .sort({ calledAt: -1, updatedAt: -1 })
+      .lean(),
+    LorQueueTicket.find({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity,
+      status: "waiting"
+    })
+      .sort({ createdAt: 1 })
+      .limit(safeLimit)
+      .lean()
+  ]);
 
   return {
     date: safeDateString,
@@ -672,7 +683,13 @@ const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1" } = {}) => {
     current: serializeTicket(current, {
       includePrivate: false,
       now
-    })
+    }),
+    waiting: waiting.map((ticket) =>
+      serializeTicket(ticket, {
+        includePrivate: false,
+        now
+      })
+    )
   };
 };
 

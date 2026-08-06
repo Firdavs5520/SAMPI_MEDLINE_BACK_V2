@@ -20,10 +20,11 @@ const setLorCurrentPatient = async () => {
 
 const getLorQueue = async ({ date, lorIdentity = "lor1", limit = DEFAULT_LIMIT } = {}) => {
   const safeLimit = normalizeLimit(limit);
-  const { safeDateString, shift, now, current } =
+  const { safeDateString, shift, now, current, waiting = [] } =
     await lorQueueService.getCurrentTicketForTv({
       date,
-      lorIdentity
+      lorIdentity,
+      limit: safeLimit
     });
   const lastChangedAt = current?.calledAt || null;
 
@@ -41,6 +42,7 @@ const getLorQueue = async ({ date, lorIdentity = "lor1", limit = DEFAULT_LIMIT }
       toLabel: shift.toLabel
     },
     current,
+    waiting,
     entries: current ? [current].slice(0, safeLimit) : []
   };
 };
