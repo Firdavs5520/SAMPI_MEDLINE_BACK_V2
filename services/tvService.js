@@ -3,7 +3,7 @@ const { subscribeLorQueueChanges } = require("./lorQueueEvents");
 const AppError = require("../utils/AppError");
 
 const DEFAULT_LIMIT = 16;
-const MAX_LIMIT = 40;
+const MAX_LIMIT = 80;
 
 const normalizeLimit = (value) => {
   const parsed = Number(value);
