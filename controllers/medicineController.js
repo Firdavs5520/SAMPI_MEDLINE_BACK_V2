@@ -2,6 +2,8 @@ const asyncHandler = require("../utils/asyncHandler");
 const medicineService = require("../services/medicineService");
 
 const toNumber = (value) => (typeof value === "string" ? Number(value) : value);
+const getIdempotencyKey = (req) =>
+  req.headers["x-idempotency-key"] || req.headers["idempotency-key"] || req.body.idempotencyKey;
 
 const getAllMedicines = asyncHandler(async (req, res) => {
   const medicines = await medicineService.getAllMedicines();
@@ -57,7 +59,9 @@ const increaseStockBulk = asyncHandler(async (req, res) => {
     : [];
 
   const medicines = await medicineService.increaseStockBulk({
-    items
+    items,
+    user: req.user,
+    idempotencyKey: getIdempotencyKey(req)
   });
 
   res.status(200).json({ success: true, data: medicines });

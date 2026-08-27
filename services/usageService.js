@@ -296,25 +296,53 @@ const resolveRoleSpecialistForCheckout = async ({
   const expectedType = assertSpecialistRole(user);
   const safeSpecialistId = String(specialistId || "").trim();
 
-  if (safeSpecialistId) {
-    assertObjectId(safeSpecialistId, `${roleLabel} ID`);
-    const specialist = await CashierSpecialist.findById(safeSpecialistId);
-    if (!specialist) {
-      throw new AppError(`Tanlangan ${roleLabel.toLowerCase()} topilmadi`, 404);
-    }
-    if (specialist.type !== expectedType) {
-      throw new AppError(`Tanlangan ${roleLabel.toLowerCase()} turi mos emas`, 400);
-    }
-    return {
-      specialistId: specialist._id,
-      specialistName: specialist.name
-    };
+  if (!safeSpecialistId) {
+    throw new AppError(`${roleLabel} tanlanishi shart`, 400);
   }
 
+  assertObjectId(safeSpecialistId, `${roleLabel} ID`);
+  const specialist = await CashierSpecialist.findById(safeSpecialistId);
+  if (!specialist) {
+    throw new AppError(`Tanlangan ${roleLabel.toLowerCase()} topilmadi`, 404);
+  }
+  if (specialist.type !== expectedType) {
+    throw new AppError(`Tanlangan ${roleLabel.toLowerCase()} turi mos emas`, 400);
+  }
   return {
-    specialistId: undefined,
-    specialistName: normalizeSpecialistName(specialistName, roleLabel)
+    specialistId: specialist._id,
+    specialistName: specialist.name || normalizeSpecialistName(specialistName, roleLabel)
   };
+};
+
+const applySpecialistFilter = ({ filter, specialistId, specialistName, label }) => {
+  const safeSpecialistId = String(specialistId || "").trim();
+  const safeSpecialistName = String(specialistName || "").trim();
+  const specialistConditions = [];
+
+  if (safeSpecialistId) {
+    assertObjectId(safeSpecialistId, `${label} ID`);
+    specialistConditions.push({ "createdBy.specialistId": safeSpecialistId });
+  }
+
+  if (safeSpecialistName) {
+    specialistConditions.push({
+      "createdBy.name": {
+        $regex: `^${escapeRegex(safeSpecialistName)}$`,
+        $options: "i"
+      }
+    });
+  }
+
+  if (!specialistConditions.length) {
+    throw new AppError(`${label} tanlanishi shart`, 400);
+  }
+
+  filter.$and = [
+    ...(filter.$and || []),
+    {
+      $or: specialistConditions
+    }
+  ];
 };
 
 const resolveCheckType = (medicineCount, serviceCount) => {
@@ -509,33 +537,11 @@ const getMyChecks = async ({
 
   if (user.role === "lor") {
     filter["createdBy.lorIdentity"] = normalizeLorIdentity(lorIdentity);
+    applySpecialistFilter({ filter, specialistId, specialistName, label: "Doktor" });
+  }
 
-    const safeSpecialistId = String(specialistId || "").trim();
-    const safeSpecialistName = String(specialistName || "").trim();
-    const specialistConditions = [];
-
-    if (safeSpecialistId) {
-      assertObjectId(safeSpecialistId, "Doktor ID");
-      specialistConditions.push({ "createdBy.specialistId": safeSpecialistId });
-    }
-
-    if (safeSpecialistName) {
-      specialistConditions.push({
-        "createdBy.name": {
-          $regex: `^${escapeRegex(safeSpecialistName)}$`,
-          $options: "i"
-        }
-      });
-    }
-
-    if (specialistConditions.length > 0) {
-      filter.$and = [
-        ...(filter.$and || []),
-        {
-          $or: specialistConditions
-        }
-      ];
-    }
+  if (user.role === "nurse") {
+    applySpecialistFilter({ filter, specialistId, specialistName, label: "Hamshira" });
   }
 
   const safeSearch = String(search || "").trim();

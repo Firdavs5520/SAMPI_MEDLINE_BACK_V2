@@ -312,11 +312,19 @@ const getManagerOverview = async ({ period = "all" } = {}) => {
   };
 };
 
-const getMedicineUsageHistory = async () => {
+const normalizeListLimit = (value, fallback = 300, max = 1000) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(max, Math.max(1, Math.floor(parsed)));
+};
+
+const getMedicineUsageHistory = async ({ limit } = {}) => {
+  const safeLimit = normalizeListLimit(limit);
   return MedicineUsage.find()
     .populate("medicineId", "name")
     .populate("usedBy", "name role email")
-    .sort({ usedAt: -1 });
+    .sort({ usedAt: -1 })
+    .limit(safeLimit);
 };
 
 const getCurrentStock = async () => {

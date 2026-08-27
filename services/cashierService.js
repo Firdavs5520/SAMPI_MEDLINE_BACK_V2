@@ -155,6 +155,12 @@ const normalizeCheckCreatorRole = (value, { allowAll = true } = {}) => {
   return safe;
 };
 
+const normalizeListLimit = (value, fallback = 200, max = 500) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(max, Math.max(1, Math.floor(parsed)));
+};
+
 const validateAmount = (amount) => {
   const parsed = Number(amount);
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 1000000) {
@@ -567,11 +573,12 @@ const createEntryFromCheck = async ({ payload, user }) => {
   });
 };
 
-const getPendingChecks = async ({ user, role = "all", search = "" }) => {
+const getPendingChecks = async ({ user, role = "all", search = "", limit }) => {
   assertCashierReadPermission(user);
 
   const safeRole = normalizeCheckCreatorRole(role, { allowAll: true });
   const safeSearch = String(search || "").trim();
+  const safeLimit = normalizeListLimit(limit);
   const filter = {
     "createdBy.role": safeRole === "all" ? { $in: CHECK_CREATOR_ROLES } : safeRole
   };
@@ -601,7 +608,10 @@ const getPendingChecks = async ({ user, role = "all", search = "" }) => {
     }
   }
 
-  const checks = await Check.find(filter).sort({ createdAt: -1 }).lean();
+  const checks = await Check.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(safeLimit * 3)
+    .lean();
   if (!checks.length) {
     return [];
   }
@@ -618,6 +628,7 @@ const getPendingChecks = async ({ user, role = "all", search = "" }) => {
 
   return checks
     .filter((check) => !acceptedSet.has(String(check._id)))
+    .slice(0, safeLimit)
     .map((check) => ({
       _id: check._id,
       checkId: check.checkId,

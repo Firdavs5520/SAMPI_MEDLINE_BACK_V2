@@ -1,10 +1,32 @@
 const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
+const StockOperation = require("../models/StockOperation");
 const AppError = require("../utils/AppError");
 const mongoose = require("mongoose");
 
+const IDEMPOTENCY_KEY_MAX_LENGTH = 120;
+
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
+
+const normalizeIdempotencyKey = (value) => {
+  const safe = String(value || "").trim();
+  if (!safe) return null;
+
+  if (safe.length > IDEMPOTENCY_KEY_MAX_LENGTH) {
+    throw new AppError(
+      `Idempotency key uzunligi ${IDEMPOTENCY_KEY_MAX_LENGTH} belgidan oshmasligi kerak`,
+      400
+    );
+  }
+
+  return safe;
+};
+
+const findStockOperationByIdempotency = async ({ userId, idempotencyKey }) => {
+  if (!userId || !idempotencyKey) return null;
+  return StockOperation.findOne({ userId, idempotencyKey }).lean();
+};
 
 const safeAbortTransaction = async (session) => {
   if (!session) return;
@@ -183,14 +205,20 @@ const increaseStock = async ({ medicineId, quantity }) => {
   return medicine;
 };
 
-const increaseStockBulk = async ({ items }) => {
+const increaseStockBulk = async ({ items, user, idempotencyKey }) => {
   if (!Array.isArray(items) || items.length === 0) {
     throw new AppError("Kamida bitta dori yuborilishi kerak", 400);
+  }
+
+  if (!user || user.role !== "delivery") {
+    throw new AppError("Omborni faqat delivery foydalanuvchi oshira oladi", 403);
   }
 
   if (items.length > 100) {
     throw new AppError("Bir martada maksimum 100 ta dori yuborish mumkin", 400);
   }
+
+  const safeIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
 
   const normalizedItems = items.map((item) => {
     const quantity = Number(item?.quantity);
@@ -223,6 +251,19 @@ const increaseStockBulk = async ({ items }) => {
     quantity
   }));
   const medicineIds = groupedItems.map((item) => item.medicineId);
+
+  if (safeIdempotencyKey) {
+    const existingOperation = await findStockOperationByIdempotency({
+      userId: user._id,
+      idempotencyKey: safeIdempotencyKey
+    });
+    if (existingOperation) {
+      return Medicine.find({
+        _id: { $in: existingOperation.medicineIds },
+        isArchived: { $ne: true }
+      }).sort({ name: 1 });
+    }
+  }
 
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -267,10 +308,41 @@ const increaseStockBulk = async ({ items }) => {
       .sort({ name: 1 })
       .session(session);
 
+    if (safeIdempotencyKey) {
+      await StockOperation.create(
+        [
+          {
+            userId: user._id,
+            idempotencyKey: safeIdempotencyKey,
+            medicineIds,
+            createdBy: {
+              role: user.role,
+              name: user.name
+            }
+          }
+        ],
+        { session }
+      );
+    }
+
     await session.commitTransaction();
     return updatedMedicines;
   } catch (error) {
     await safeAbortTransaction(session);
+
+    if (safeIdempotencyKey && error?.code === 11000) {
+      const existingOperation = await findStockOperationByIdempotency({
+        userId: user._id,
+        idempotencyKey: safeIdempotencyKey
+      });
+      if (existingOperation) {
+        return Medicine.find({
+          _id: { $in: existingOperation.medicineIds },
+          isArchived: { $ne: true }
+        }).sort({ name: 1 });
+      }
+    }
+
     throw error;
   } finally {
     session.endSession();

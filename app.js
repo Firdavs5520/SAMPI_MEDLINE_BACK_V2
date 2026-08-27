@@ -20,9 +20,29 @@ const normalizeOrigin = (value) =>
     .replace(/\/+$/, "")
     .toLowerCase();
 
+const sanitizeLogUrl = (value) => {
+  try {
+    const url = new URL(value || "/", "http://sampi.local");
+    ["token", "streamToken", "access_token"].forEach((key) => {
+      if (url.searchParams.has(key)) {
+        url.searchParams.set(key, "[redacted]");
+      }
+    });
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return String(value || "").replace(
+      /(token|streamToken|access_token)=([^&\s]+)/gi,
+      "$1=[redacted]"
+    );
+  }
+};
+
 const defaultOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost",
+  "https://localhost",
+  "capacitor://localhost",
   "https://sampi-medline.vercel.app"
 ];
 const envOrigins = process.env.CLIENT_ORIGIN
@@ -61,7 +81,8 @@ app.use(
   })
 );
 app.use(express.json());
-app.use(morgan("dev"));
+morgan.token("safe-url", (req) => sanitizeLogUrl(req.originalUrl || req.url));
+app.use(morgan(":method :safe-url :status :res[content-length] - :response-time ms"));
 
 app.get("/health", (req, res) => {
   res.status(200).json(getHealthPayload());

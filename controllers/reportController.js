@@ -43,7 +43,9 @@ const getOverview = asyncHandler(async (req, res) => {
 });
 
 const getMedicineUsageHistory = asyncHandler(async (req, res) => {
-  const history = await reportService.getMedicineUsageHistory();
+  const history = await reportService.getMedicineUsageHistory({
+    limit: req.query.limit
+  });
   res.status(200).json({ success: true, data: history });
 });
 

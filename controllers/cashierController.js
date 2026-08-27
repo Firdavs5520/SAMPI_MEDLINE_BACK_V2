@@ -70,7 +70,8 @@ const getPendingChecks = asyncHandler(async (req, res) => {
   const data = await cashierService.getPendingChecks({
     user: req.user,
     role: req.query.role,
-    search: req.query.search
+    search: req.query.search,
+    limit: req.query.limit
   });
 
   res.status(200).json({ success: true, data });
