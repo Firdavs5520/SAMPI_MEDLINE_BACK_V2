@@ -2,6 +2,7 @@ const ExcelJS = require("exceljs");
 const CashierEntry = require("../models/CashierEntry");
 const LorQueueTicket = require("../models/LorQueueTicket");
 const ReporterDailyRecord = require("../models/ReporterDailyRecord");
+const { buildCollectionStages } = require("./cashierCollections");
 const AppError = require("../utils/AppError");
 
 const TASHKENT_OFFSET_HOURS = 5;
@@ -125,8 +126,8 @@ const normalizeMonthString = (value) => {
       .slice(0, 7);
   }
 
-  if (!/^\d{4}-\d{2}$/.test(safe)) {
-    throw new AppError("Oy YYYY-MM formatida bo'lishi kerak", 400);
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(safe)) {
+    throw new AppError("Oy YYYY-MM formatida (01-12) bo'lishi kerak", 400);
   }
 
   return safe;
@@ -260,10 +261,11 @@ const mapStats = (stats = emptyCashierStats()) => ({
   debtAmount: Number(stats.debtAmount || 0)
 });
 
-const normalizeLorQueueStats = (stats = emptyLorQueueStats()) => ({
+// LOR navbati bo'lmagan kunlar uchun stats null keladi (buildReportRow default).
+const normalizeLorQueueStats = (stats) => ({
   ...emptyLorQueueStats(),
-  ...stats,
-  cancelReasons: Array.isArray(stats.cancelReasons) ? stats.cancelReasons : []
+  ...(stats || {}),
+  cancelReasons: Array.isArray(stats?.cancelReasons) ? stats.cancelReasons : []
 });
 
 const buildReportRow = ({ dateKey, cashier = {}, manualRecord = null, lorQueue = null }) => {
@@ -291,7 +293,33 @@ const buildReportRow = ({ dateKey, cashier = {}, manualRecord = null, lorQueue =
   };
 };
 
+// To'langan summa (paidAmount) to'lov qilingan kun bo'yicha: menejer va smena
+// hisobotlari bilan bir xil qoida (eski qarz yopilgan kunning tushumiga kiradi).
+const aggregatePaidByDay = async ({ start, end }) => {
+  const rows = await CashierEntry.aggregate([
+    ...buildCollectionStages({ start, end }),
+    {
+      $group: {
+        _id: {
+          dateKey: {
+            $dateToString: {
+              date: "$collections.paidAt",
+              format: "%Y-%m-%d",
+              timezone: "+05:00"
+            }
+          },
+          role: effectiveCashierRoleExpression
+        },
+        paidAmount: { $sum: "$collections.amount" }
+      }
+    }
+  ]);
+
+  return rows;
+};
+
 const aggregateCashierByDay = async ({ start, end }) => {
+  const paidRows = await aggregatePaidByDay({ start, end });
   const rows = await CashierEntry.aggregate([
     {
       $match: {
@@ -325,23 +353,36 @@ const aggregateCashierByDay = async ({ start, end }) => {
   ]);
 
   const byDate = {};
+  const ensureDate = (dateKey) => {
+    byDate[dateKey] = byDate[dateKey] || {
+      lor: emptyCashierStats(),
+      nurse: emptyCashierStats(),
+      total: emptyCashierStats()
+    };
+    return byDate[dateKey];
+  };
 
   for (const item of rows) {
     const dateKey = item?._id?.dateKey;
     const role = item?._id?.role;
     if (!dateKey || !["lor", "nurse"].includes(role)) continue;
 
-    byDate[dateKey] = byDate[dateKey] || {
-      lor: emptyCashierStats(),
-      nurse: emptyCashierStats(),
-      total: emptyCashierStats()
-    };
+    const day = ensureDate(dateKey);
+    day[role] = { ...mapStats(item), paidAmount: 0 };
+    day.total.count += Number(item.count || 0);
+    day.total.totalAmount += Number(item.totalAmount || 0);
+    day.total.debtAmount += Number(item.debtAmount || 0);
+  }
 
-    byDate[dateKey][role] = mapStats(item);
-    byDate[dateKey].total.count += Number(item.count || 0);
-    byDate[dateKey].total.totalAmount += Number(item.totalAmount || 0);
-    byDate[dateKey].total.paidAmount += Number(item.paidAmount || 0);
-    byDate[dateKey].total.debtAmount += Number(item.debtAmount || 0);
+  for (const item of paidRows) {
+    const dateKey = item?._id?.dateKey;
+    const role = item?._id?.role;
+    if (!dateKey || !["lor", "nurse"].includes(role)) continue;
+
+    const day = ensureDate(dateKey);
+    const paidAmount = Number(item.paidAmount || 0);
+    day[role].paidAmount += paidAmount;
+    day.total.paidAmount += paidAmount;
   }
 
   return byDate;

@@ -427,38 +427,6 @@ const buildListFilter = async ({
   };
 };
 
-const resolveSpecialistData = async ({ specialistId, specialistName, specialistType }) => {
-  const safeSpecialistType = normalizeSpecialistType(specialistType);
-  const safeSpecialistId = String(specialistId || "").trim();
-  const safeSpecialistName = String(specialistName || "").trim();
-
-  if (safeSpecialistId) {
-    const specialist = await CashierSpecialist.findById(safeSpecialistId);
-    if (!specialist) {
-      throw new AppError("Tanlangan mutaxassis topilmadi", 404);
-    }
-    if (specialist.type !== safeSpecialistType) {
-      throw new AppError("Tanlangan mutaxassis turi mos emas", 400);
-    }
-
-    return {
-      specialistId: specialist._id,
-      specialistName: specialist.name,
-      specialistType: specialist.type
-    };
-  }
-
-  if (!safeSpecialistName) {
-    throw new AppError("Mutaxassis nomi majburiy", 400);
-  }
-
-  return {
-    specialistId: undefined,
-    specialistName: safeSpecialistName,
-    specialistType: safeSpecialistType
-  };
-};
-
 const normalizeCheckObjectId = (value) => {
   const safe = String(value || "").trim();
   if (!isValidObjectId(safe)) {
@@ -894,23 +862,6 @@ const createSpecialist = async ({ payload, user }) => {
   }
 };
 
-const deleteSpecialist = async ({ specialistId, user }) => {
-  assertCashierWritePermission(user);
-
-  const specialist = await CashierSpecialist.findById(specialistId);
-  if (!specialist) {
-    throw new AppError("Mutaxassis topilmadi", 404);
-  }
-
-  const usedCount = await CashierEntry.countDocuments({ specialistId: specialist._id });
-  if (usedCount > 0) {
-    throw new AppError("Bu mutaxassis ishlatilgan, o'chirib bo'lmaydi", 400);
-  }
-
-  await CashierSpecialist.deleteOne({ _id: specialist._id });
-  return { deleted: true, id: specialistId };
-};
-
 const createEntry = async ({ payload, user }) => {
   assertCashierWritePermission(user);
 
@@ -922,90 +873,6 @@ const createEntry = async ({ payload, user }) => {
   }
 
   return createEntryFromCheck({ payload, user });
-};
-
-const updateEntry = async ({ entryId, payload, user }) => {
-  assertCashierWritePermission(user);
-
-  const entry = await CashierEntry.findById(entryId);
-  if (!entry) {
-    throw new AppError("Kassa yozuvi topilmadi", 404);
-  }
-
-  if (payload.patientName !== undefined) {
-    const patientName = String(payload.patientName || "").trim();
-    if (!patientName) {
-      throw new AppError("Bemor F.I.O majburiy", 400);
-    }
-    entry.patientName = patientName;
-  }
-
-  const nextSpecialistType =
-    payload.specialistType !== undefined
-      ? normalizeSpecialistType(payload.specialistType)
-      : normalizeSpecialistType(entry.specialistType || entry.department || "lor");
-
-  const nextSpecialistData = await resolveSpecialistData({
-    specialistId:
-      payload.specialistId !== undefined ? payload.specialistId : entry.specialistId,
-    specialistName:
-      payload.specialistName !== undefined ? payload.specialistName : entry.specialistName,
-    specialistType: nextSpecialistType
-  });
-
-  entry.specialistType = nextSpecialistData.specialistType;
-  entry.specialistName = nextSpecialistData.specialistName;
-  entry.specialistId = nextSpecialistData.specialistId || undefined;
-
-  if (payload.department !== undefined) {
-    entry.department = normalizeDepartment(payload.department);
-  } else if (!entry.department) {
-    entry.department = normalizeDepartment(nextSpecialistData.specialistType);
-  } else if (entry.department === "procedure") {
-    // Backward compatibility: migrate procedure -> nurse on first update.
-    entry.department = "nurse";
-  }
-
-  const nextAmount =
-    payload.amount !== undefined ? validateAmount(payload.amount) : validateAmount(entry.amount);
-  const paidInput =
-    payload.paidAmount !== undefined ? payload.paidAmount : entry.paidAmount ?? nextAmount;
-  const { paidAmount, debtAmount } = resolvePaidAndDebt(nextAmount, paidInput);
-  const nextPatientPhone =
-    payload.patientPhone !== undefined
-      ? String(payload.patientPhone || "").trim()
-      : String(entry.patientPhone || "").trim();
-  const settings = await cashierSettingsService.getSettings();
-
-  if (settings.requireDebtPhone && debtAmount > 0 && !nextPatientPhone) {
-    throw new AppError("Qarz qolsa bemor telefoni majburiy", 400);
-  }
-
-  entry.amount = nextAmount;
-  entry.paidAmount = paidAmount;
-  entry.debtAmount = debtAmount;
-
-  if (payload.paymentMethod !== undefined) {
-    entry.paymentMethod = normalizePaymentMethod(payload.paymentMethod);
-  } else if (!entry.paymentMethod || !PAYMENT_METHODS.includes(entry.paymentMethod)) {
-    entry.paymentMethod = "cash";
-  }
-
-  if (payload.patientPhone !== undefined) {
-    entry.patientPhone = nextPatientPhone;
-  }
-
-  if (payload.note !== undefined) {
-    entry.note = String(payload.note || "").trim();
-  }
-
-  if (payload.entryDate !== undefined) {
-    const { start } = getDateRange(payload.entryDate);
-    entry.entryDate = start;
-  }
-
-  await entry.save();
-  return entry;
 };
 
 const payDebt = async ({ entryId, payload, user }) => {
@@ -1081,18 +948,6 @@ const payDebt = async ({ entryId, payload, user }) => {
   return updatedEntry;
 };
 
-const deleteEntry = async ({ entryId, user }) => {
-  assertCashierWritePermission(user);
-
-  const entry = await CashierEntry.findById(entryId);
-  if (!entry) {
-    throw new AppError("Kassa yozuvi topilmadi", 404);
-  }
-
-  await CashierEntry.deleteOne({ _id: entryId });
-  return { deleted: true, id: entryId };
-};
-
 module.exports = {
   getSettings,
   updateSettings,
@@ -1103,9 +958,6 @@ module.exports = {
   getPendingChecks,
   getSpecialists,
   createSpecialist,
-  deleteSpecialist,
   createEntry,
-  updateEntry,
-  payDebt,
-  deleteEntry
+  payDebt
 };

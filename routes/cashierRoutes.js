@@ -21,8 +21,6 @@ router.get("/pending-checks", cashierController.getPendingChecks);
 router.get("/specialists", cashierController.getSpecialists);
 router.post("/specialists", allowRoles("cashier"), cashierController.createSpecialist);
 router.post("/entries", allowRoles("cashier"), cashierController.createEntry);
-router.patch("/entries/:id", allowRoles("cashier"), cashierController.updateEntry);
 router.post("/entries/:id/payments", allowRoles("cashier"), cashierController.payDebt);
-router.delete("/entries/:id", allowRoles("cashier"), cashierController.deleteEntry);
 
 module.exports = router;
