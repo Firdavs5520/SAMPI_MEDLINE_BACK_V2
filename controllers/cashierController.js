@@ -86,16 +86,6 @@ const createEntry = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: entry });
 });
 
-const updateEntry = asyncHandler(async (req, res) => {
-  const entry = await cashierService.updateEntry({
-    entryId: req.params.id,
-    payload: req.body,
-    user: req.user
-  });
-
-  res.status(200).json({ success: true, data: entry });
-});
-
 const payDebt = asyncHandler(async (req, res) => {
   const entry = await cashierService.payDebt({
     entryId: req.params.id,
@@ -104,15 +94,6 @@ const payDebt = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({ success: true, data: entry });
-});
-
-const deleteEntry = asyncHandler(async (req, res) => {
-  const result = await cashierService.deleteEntry({
-    entryId: req.params.id,
-    user: req.user
-  });
-
-  res.status(200).json({ success: true, data: result });
 });
 
 const getSpecialists = asyncHandler(async (req, res) => {
@@ -134,15 +115,6 @@ const createSpecialist = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data });
 });
 
-const deleteSpecialist = asyncHandler(async (req, res) => {
-  const data = await cashierService.deleteSpecialist({
-    specialistId: req.params.id,
-    user: req.user
-  });
-
-  res.status(200).json({ success: true, data });
-});
-
 module.exports = {
   getSettings,
   updateSettings,
@@ -153,9 +125,6 @@ module.exports = {
   getPendingChecks,
   getSpecialists,
   createSpecialist,
-  deleteSpecialist,
   createEntry,
-  updateEntry,
-  payDebt,
-  deleteEntry
+  payDebt
 };

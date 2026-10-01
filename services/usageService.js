@@ -8,6 +8,7 @@ const MedicineUsage = require("../models/MedicineUsage");
 const ServiceUsage = require("../models/ServiceUsage");
 const CashierSpecialist = require("../models/CashierSpecialist");
 const AppError = require("../utils/AppError");
+const runInTransaction = require("../utils/runInTransaction");
 const lorQueueService = require("./lorQueueService");
 const NURSE_PRICE_TIERS = ["first", "second", "third"];
 const ROLE_SPECIALIST_TYPES = ["nurse", "lor"];
@@ -26,21 +27,9 @@ const assertObjectId = (value, label) => {
   }
 };
 
-const safeAbortTransaction = async (session) => {
-  if (!session) return;
-
-  try {
-    if (typeof session.inTransaction === "function" && session.inTransaction()) {
-      await session.abortTransaction();
-    }
-  } catch (_) {
-    // Intentionally ignore abort errors to preserve original business error.
-  }
-};
-
 const validateQuantity = (quantity) => {
-  if (typeof quantity !== "number" || quantity <= 0) {
-    throw new AppError("Miqdor 0 dan katta bo'lishi kerak", 400);
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new AppError("Miqdor 0 dan katta butun son bo'lishi kerak", 400);
   }
 };
 
@@ -124,6 +113,15 @@ const normalizeOptionalPatient = (patient) => {
     lastName,
     fullName: `${firstName} ${lastName}`.trim()
   };
+};
+
+const MY_CHECKS_DEFAULT_LIMIT = 300;
+const MY_CHECKS_MAX_LIMIT = 1000;
+
+const normalizeListLimit = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return MY_CHECKS_DEFAULT_LIMIT;
+  return Math.min(MY_CHECKS_MAX_LIMIT, Math.floor(parsed));
 };
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -384,10 +382,7 @@ const useMedicine = async ({ medicineId, quantity, user }) => {
   validateQuantity(quantity);
   assertObjectId(medicineId, "Dori ID");
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
+  return runInTransaction(async (session) => {
     const medicine = await Medicine.findOneAndUpdate(
       { _id: medicineId, stock: { $gte: quantity }, isArchived: { $ne: true } },
       { $inc: { stock: -quantity } },
@@ -435,14 +430,8 @@ const useMedicine = async ({ medicineId, quantity, user }) => {
       { session }
     );
 
-    await session.commitTransaction();
     return { medicine, usage: usageRecord, check };
-  } catch (error) {
-    await safeAbortTransaction(session);
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const useService = async ({
@@ -460,10 +449,7 @@ const useService = async ({
   const normalizedLorIdentity =
     user?.role === "lor" ? normalizeLorIdentity(lorIdentity) : null;
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
+  return runInTransaction(async (session) => {
     const service = await Service.findById(serviceId).session(session);
     if (!service) {
       throw new AppError("Xizmat topilmadi", 404);
@@ -517,14 +503,8 @@ const useService = async ({
       { session }
     );
 
-    await session.commitTransaction();
     return { service, usage: usageRecord, check };
-  } catch (error) {
-    await safeAbortTransaction(session);
-    throw error;
-  } finally {
-    session.endSession();
-  }
+  });
 };
 
 const getMyChecks = async ({
@@ -532,7 +512,8 @@ const getMyChecks = async ({
   search = "",
   lorIdentity,
   specialistId,
-  specialistName
+  specialistName,
+  limit
 }) => {
   if (!user) {
     throw new AppError("Foydalanuvchi majburiy", 401);
@@ -577,7 +558,11 @@ const getMyChecks = async ({
     ];
   }
 
-  const checks = await Check.find(filter).sort({ createdAt: -1 }).lean();
+  // Cheklar vaqt o'tishi bilan ko'payadi: oxirgilarini qaytaramiz, eskilarini qidiruv topadi.
+  const checks = await Check.find(filter)
+    .sort({ createdAt: -1 })
+    .limit(normalizeListLimit(limit))
+    .lean();
   if (!checks.length) {
     return [];
   }
@@ -837,153 +822,149 @@ const createNurseCheckout = async ({
   });
   const normalizedPatient = normalizePatient(patient);
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    let total = 0;
-    const checkItems = [];
-    const medicineUsageDocs = [];
-    const serviceUsageDocs = [];
+    return await runInTransaction(async (session) => {
+      let total = 0;
+      const checkItems = [];
+      const medicineUsageDocs = [];
+      const serviceUsageDocs = [];
 
-    const medicineIds = normalizedMedicineItems.map((item) => item.medicineId);
-    const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
+      const medicineIds = normalizedMedicineItems.map((item) => item.medicineId);
+      const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
 
-    const medicineDocs = medicineIds.length
-      ? await Medicine.find({
-          _id: { $in: medicineIds },
-          isArchived: { $ne: true }
-        }).session(session)
-      : [];
-
-    const serviceDocs = serviceIds.length
-      ? await Service.find({
-          _id: { $in: serviceIds }
-        }).session(session)
-      : [];
-
-    const medicineMap = new Map(
-      medicineDocs.map((medicine) => [medicine._id.toString(), medicine])
-    );
-    const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
-
-    for (const item of normalizedMedicineItems) {
-      const quantity = item.quantity;
-      validateQuantity(quantity);
-
-      const medicine = medicineMap.get(String(item.medicineId));
-
-      if (!medicine) {
-        throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
-      }
-      if (medicine.stock < quantity) {
-        throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
-      }
-
-      const resolvedPrice = resolvePrice(medicine.price, medicine.name);
-
-      medicineUsageDocs.push({
-        medicineId: medicine._id,
-        quantity,
-        usedBy: user._id
-      });
-
-      checkItems.push({
-        itemType: "medicine",
-        name: medicine.name,
-        quantity,
-        price: resolvedPrice
-      });
-
-      total += quantity * resolvedPrice;
-    }
-
-    if (normalizedMedicineItems.length > 0) {
-      const stockUpdateOps = normalizedMedicineItems.map((item) => ({
-        updateOne: {
-          filter: {
-            _id: item.medicineId,
-            stock: { $gte: item.quantity },
+      const medicineDocs = medicineIds.length
+        ? await Medicine.find({
+            _id: { $in: medicineIds },
             isArchived: { $ne: true }
-          },
-          update: { $inc: { stock: -item.quantity } }
+          }).session(session)
+        : [];
+
+      const serviceDocs = serviceIds.length
+        ? await Service.find({
+            _id: { $in: serviceIds }
+          }).session(session)
+        : [];
+
+      const medicineMap = new Map(
+        medicineDocs.map((medicine) => [medicine._id.toString(), medicine])
+      );
+      const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
+
+      for (const item of normalizedMedicineItems) {
+        const quantity = item.quantity;
+        validateQuantity(quantity);
+
+        const medicine = medicineMap.get(String(item.medicineId));
+
+        if (!medicine) {
+          throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
         }
-      }));
-
-      const stockUpdateResult = await Medicine.bulkWrite(stockUpdateOps, { session });
-      if (stockUpdateResult.matchedCount !== stockUpdateOps.length) {
-        throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
-      }
-    }
-
-    for (const item of normalizedServiceItems) {
-      const quantity = item.quantity;
-      validateQuantity(quantity);
-
-      const service = serviceMap.get(String(item.serviceId));
-      if (!service) {
-        throw new AppError("Xizmat topilmadi", 404);
-      }
-
-      enforceServiceRoleRule(service, user.role);
-      enforceLorServiceOwnership(service, user);
-
-      const resolved = resolveServicePrice({
-        service,
-        priceTier: item.priceTier,
-        userRole: user.role
-      });
-
-      serviceUsageDocs.push({
-        serviceId: service._id,
-        quantity,
-        usedBy: user._id,
-        ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
-      });
-
-      checkItems.push({
-        itemType: "service",
-        name: getServiceCheckItemName(service.name, resolved.tierLabel),
-        quantity,
-        price: resolved.price
-      });
-
-      total += quantity * resolved.price;
-    }
-
-    if (medicineUsageDocs.length > 0) {
-      await MedicineUsage.insertMany(medicineUsageDocs, { session });
-    }
-
-    if (serviceUsageDocs.length > 0) {
-      await ServiceUsage.insertMany(serviceUsageDocs, { session });
-    }
-
-    const checkId = await createUniqueCheckId(session);
-
-    const [check] = await Check.create(
-      [
-        {
-          checkId,
-          idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
-          type: resolveCheckType(normalizedMedicineItems.length, normalizedServiceItems.length),
-          items: checkItems,
-          total: Number(total.toFixed(2)),
-          patient: normalizedPatient,
-          createdBy: buildCreatedByPayload(user, {
-            displayName: specialist.specialistName,
-            specialistId: specialist.specialistId
-          })
+        if (medicine.stock < quantity) {
+          throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
         }
-      ],
-      { session }
-    );
 
-    await session.commitTransaction();
-    return { check, idempotentReplay: false };
+        const resolvedPrice = resolvePrice(medicine.price, medicine.name);
+
+        medicineUsageDocs.push({
+          medicineId: medicine._id,
+          quantity,
+          usedBy: user._id
+        });
+
+        checkItems.push({
+          itemType: "medicine",
+          name: medicine.name,
+          quantity,
+          price: resolvedPrice
+        });
+
+        total += quantity * resolvedPrice;
+      }
+
+      if (normalizedMedicineItems.length > 0) {
+        const stockUpdateOps = normalizedMedicineItems.map((item) => ({
+          updateOne: {
+            filter: {
+              _id: item.medicineId,
+              stock: { $gte: item.quantity },
+              isArchived: { $ne: true }
+            },
+            update: { $inc: { stock: -item.quantity } }
+          }
+        }));
+
+        const stockUpdateResult = await Medicine.bulkWrite(stockUpdateOps, { session });
+        if (stockUpdateResult.matchedCount !== stockUpdateOps.length) {
+          throw new AppError("Qoldiq yetarli emas yoki dori topilmadi", 400);
+        }
+      }
+
+      for (const item of normalizedServiceItems) {
+        const quantity = item.quantity;
+        validateQuantity(quantity);
+
+        const service = serviceMap.get(String(item.serviceId));
+        if (!service) {
+          throw new AppError("Xizmat topilmadi", 404);
+        }
+
+        enforceServiceRoleRule(service, user.role);
+        enforceLorServiceOwnership(service, user);
+
+        const resolved = resolveServicePrice({
+          service,
+          priceTier: item.priceTier,
+          userRole: user.role
+        });
+
+        serviceUsageDocs.push({
+          serviceId: service._id,
+          quantity,
+          usedBy: user._id,
+          ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
+        });
+
+        checkItems.push({
+          itemType: "service",
+          name: getServiceCheckItemName(service.name, resolved.tierLabel),
+          quantity,
+          price: resolved.price
+        });
+
+        total += quantity * resolved.price;
+      }
+
+      if (medicineUsageDocs.length > 0) {
+        await MedicineUsage.insertMany(medicineUsageDocs, { session });
+      }
+
+      if (serviceUsageDocs.length > 0) {
+        await ServiceUsage.insertMany(serviceUsageDocs, { session });
+      }
+
+      const checkId = await createUniqueCheckId(session);
+
+      const [check] = await Check.create(
+        [
+          {
+            checkId,
+            idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
+            type: resolveCheckType(normalizedMedicineItems.length, normalizedServiceItems.length),
+            items: checkItems,
+            total: Number(total.toFixed(2)),
+            patient: normalizedPatient,
+            createdBy: buildCreatedByPayload(user, {
+              displayName: specialist.specialistName,
+              specialistId: specialist.specialistId
+            })
+          }
+        ],
+        { session }
+      );
+
+      return { check, idempotentReplay: false };
+    });
   } catch (error) {
-    await safeAbortTransaction(session);
-
     if (safeIdempotencyKey && error?.code === 11000) {
       const existing = await findCheckByIdempotency({
         userId: user._id,
@@ -995,8 +976,6 @@ const createNurseCheckout = async ({
     }
 
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 
@@ -1052,96 +1031,95 @@ const createLorCheckout = async ({
   const normalizedPatient = normalizePatient(patient);
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const activeTicket = await lorQueueService.getActiveTicketForCheckout({
-      ticketId: queueTicketId,
-      user,
-      lorIdentity: normalizedLorIdentity,
-      specialistId: specialist.specialistId,
-      session
-    });
-    let total = 0;
-    const checkItems = [];
-    const serviceUsageDocs = [];
-    const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
-    const serviceDocs = await Service.find({
-      _id: { $in: serviceIds }
-    }).session(session);
-    const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
+    const { check, completedTicket } = await runInTransaction(async (session) => {
+      const activeTicket = await lorQueueService.getActiveTicketForCheckout({
+        ticketId: queueTicketId,
+        user,
+        lorIdentity: normalizedLorIdentity,
+        specialistId: specialist.specialistId,
+        session
+      });
+      let total = 0;
+      const checkItems = [];
+      const serviceUsageDocs = [];
+      const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
+      const serviceDocs = await Service.find({
+        _id: { $in: serviceIds }
+      }).session(session);
+      const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
 
-    for (const item of normalizedServiceItems) {
-      const quantity = item.quantity;
-      validateQuantity(quantity);
+      for (const item of normalizedServiceItems) {
+        const quantity = item.quantity;
+        validateQuantity(quantity);
 
-      const service = serviceMap.get(String(item.serviceId));
-      if (!service) {
-        throw new AppError("Xizmat topilmadi", 404);
+        const service = serviceMap.get(String(item.serviceId));
+        if (!service) {
+          throw new AppError("Xizmat topilmadi", 404);
+        }
+
+        enforceServiceRoleRule(service, user.role);
+        enforceLorServiceOwnership(service, user);
+
+        const resolved = resolveServicePrice({
+          service,
+          priceTier: item.priceTier,
+          userRole: user.role
+        });
+
+        serviceUsageDocs.push({
+          serviceId: service._id,
+          quantity,
+          usedBy: user._id,
+          ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
+        });
+
+        checkItems.push({
+          itemType: "service",
+          name: getServiceCheckItemName(service.name, resolved.tierLabel),
+          quantity,
+          price: resolved.price
+        });
+
+        total += quantity * resolved.price;
       }
 
-      enforceServiceRoleRule(service, user.role);
-      enforceLorServiceOwnership(service, user);
+      await ServiceUsage.insertMany(serviceUsageDocs, { session });
 
-      const resolved = resolveServicePrice({
-        service,
-        priceTier: item.priceTier,
-        userRole: user.role
+      const checkId = await createUniqueCheckId(session);
+      const [check] = await Check.create(
+        [
+          {
+            checkId,
+            idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
+            type: "service",
+            items: checkItems,
+            total: Number(total.toFixed(2)),
+            patient: normalizedPatient,
+            lorQueue: {
+              ticketId: activeTicket._id,
+              queueCode: activeTicket.queueCode
+            },
+            createdBy: buildCreatedByPayload(user, {
+              lorIdentity: normalizedLorIdentity,
+              displayName: specialist.specialistName,
+              specialistId: specialist.specialistId
+            })
+          }
+        ],
+        { session }
+      );
+
+      const completedTicket = await lorQueueService.completeTicketWithCheck({
+        ticketId: activeTicket._id,
+        user,
+        patient: normalizedPatient,
+        check,
+        session
       });
-
-      serviceUsageDocs.push({
-        serviceId: service._id,
-        quantity,
-        usedBy: user._id,
-        ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
-      });
-
-      checkItems.push({
-        itemType: "service",
-        name: getServiceCheckItemName(service.name, resolved.tierLabel),
-        quantity,
-        price: resolved.price
-      });
-
-      total += quantity * resolved.price;
-    }
-
-    await ServiceUsage.insertMany(serviceUsageDocs, { session });
-
-    const checkId = await createUniqueCheckId(session);
-    const [check] = await Check.create(
-      [
-        {
-          checkId,
-          idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
-          type: "service",
-          items: checkItems,
-          total: Number(total.toFixed(2)),
-          patient: normalizedPatient,
-          lorQueue: {
-            ticketId: activeTicket._id,
-            queueCode: activeTicket.queueCode
-          },
-          createdBy: buildCreatedByPayload(user, {
-            lorIdentity: normalizedLorIdentity,
-            displayName: specialist.specialistName,
-            specialistId: specialist.specialistId
-          })
-        }
-      ],
-      { session }
-    );
-
-    const completedTicket = await lorQueueService.completeTicketWithCheck({
-      ticketId: activeTicket._id,
-      user,
-      patient: normalizedPatient,
-      check,
-      session
+      return { check, completedTicket };
     });
 
-    await session.commitTransaction();
     lorQueueService.notifyQueueChanged({
       shiftDate: completedTicket.shiftDate,
       lorIdentity: normalizedLorIdentity,
@@ -1150,8 +1128,6 @@ const createLorCheckout = async ({
     });
     return { check, idempotentReplay: false };
   } catch (error) {
-    await safeAbortTransaction(session);
-
     if (safeIdempotencyKey && error?.code === 11000) {
       const existing = await findCheckByIdempotency({
         userId: user._id,
@@ -1163,8 +1139,6 @@ const createLorCheckout = async ({
     }
 
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 

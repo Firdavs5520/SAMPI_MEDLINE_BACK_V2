@@ -86,7 +86,9 @@ app.use(
 );
 app.use(express.json());
 morgan.token("safe-url", (req) => sanitizeLogUrl(req.originalUrl || req.url));
-app.use(morgan(":method :safe-url :status :res[content-length] - :response-time ms"));
+if (process.env.NODE_ENV !== "test") {
+  app.use(morgan(":method :safe-url :status :res[content-length] - :response-time ms"));
+}
 
 app.get("/health", (req, res) => {
   res.status(200).json(getHealthPayload());

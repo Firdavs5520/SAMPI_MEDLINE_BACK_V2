@@ -1,7 +1,9 @@
 const Medicine = require("../models/Medicine");
 const MedicineUsage = require("../models/MedicineUsage");
 const StockOperation = require("../models/StockOperation");
+const StockAdjustment = require("../models/StockAdjustment");
 const AppError = require("../utils/AppError");
+const runInTransaction = require("../utils/runInTransaction");
 const mongoose = require("mongoose");
 
 const IDEMPOTENCY_KEY_MAX_LENGTH = 120;
@@ -28,17 +30,16 @@ const findStockOperationByIdempotency = async ({ userId, idempotencyKey }) => {
   return StockOperation.findOne({ userId, idempotencyKey }).lean();
 };
 
-const safeAbortTransaction = async (session) => {
-  if (!session) return;
-
-  try {
-    if (typeof session.inTransaction === "function" && session.inTransaction()) {
-      await session.abortTransaction();
-    }
-  } catch (_) {
-    // Preserve original error in catch block.
-  }
-};
+// Qo'lda qilingan qoldiq o'zgarishlari tarixi (kim, qachon, qanchadan qanchaga).
+const recordStockAdjustments = (rows, user, session) =>
+  StockAdjustment.insertMany(
+    rows.map((row) => ({
+      ...row,
+      delta: row.newStock - row.previousStock,
+      adjustedBy: user ? { userId: user._id, role: user.role, name: user.name } : undefined
+    })),
+    session ? { session } : undefined
+  );
 
 const findMedicineByNameInsensitive = (name) =>
   Medicine.findOne({
@@ -187,9 +188,9 @@ const deleteMedicine = async ({ medicineId, user }) => {
   return { deleted: true, medicineId: String(medicine._id) };
 };
 
-const increaseStock = async ({ medicineId, quantity }) => {
-  if (typeof quantity !== "number" || quantity <= 0) {
-    throw new AppError("Miqdor 0 dan katta bo'lishi kerak", 400);
+const increaseStock = async ({ medicineId, quantity, user }) => {
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new AppError("Miqdor 0 dan katta butun son bo'lishi kerak", 400);
   }
 
   const medicine = await Medicine.findOneAndUpdate(
@@ -201,6 +202,19 @@ const increaseStock = async ({ medicineId, quantity }) => {
   if (!medicine) {
     throw new AppError("Dori topilmadi", 404);
   }
+
+  await recordStockAdjustments(
+    [
+      {
+        medicineId: medicine._id,
+        medicineName: medicine.name,
+        type: "increase",
+        previousStock: medicine.stock - quantity,
+        newStock: medicine.stock
+      }
+    ],
+    user
+  );
 
   return medicine;
 };
@@ -228,8 +242,8 @@ const increaseStockBulk = async ({ items, user, idempotencyKey }) => {
     if (!isValidObjectId(item.medicineId.trim())) {
       throw new AppError("Dori identifikatori noto'g'ri", 400);
     }
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new AppError("Har bir miqdor 0 dan katta bo'lishi kerak", 400);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new AppError("Har bir miqdor 0 dan katta butun son bo'lishi kerak", 400);
     }
 
     return {
@@ -265,71 +279,80 @@ const increaseStockBulk = async ({ items, user, idempotencyKey }) => {
     }
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const medicines = await Medicine.find({
-      _id: { $in: medicineIds },
-      isArchived: { $ne: true }
-    })
-      .select("_id name")
-      .session(session);
+    return await runInTransaction(async (session) => {
+      const medicines = await Medicine.find({
+        _id: { $in: medicineIds },
+        isArchived: { $ne: true }
+      })
+        .select("_id name")
+        .session(session);
 
-    if (medicines.length !== medicineIds.length) {
-      const foundSet = new Set(medicines.map((item) => String(item._id)));
-      const missingIds = medicineIds.filter((id) => !foundSet.has(String(id)));
-      throw new AppError(`Dori topilmadi: ${missingIds.join(", ")}`, 404);
-    }
-
-    const operations = groupedItems.map((item) => ({
-      updateOne: {
-        filter: { _id: item.medicineId },
-        update: { $inc: { stock: item.quantity } }
+      if (medicines.length !== medicineIds.length) {
+        const foundSet = new Set(medicines.map((item) => String(item._id)));
+        const missingIds = medicineIds.filter((id) => !foundSet.has(String(id)));
+        throw new AppError(`Dori topilmadi: ${missingIds.join(", ")}`, 404);
       }
-    }));
 
-    const operationsWithArchiveGuard = operations.map((op) => ({
-      updateOne: {
-        ...op.updateOne,
-        filter: {
-          ...op.updateOne.filter,
-          isArchived: { $ne: true }
+      const operations = groupedItems.map((item) => ({
+        updateOne: {
+          filter: { _id: item.medicineId },
+          update: { $inc: { stock: item.quantity } }
         }
-      }
-    }));
+      }));
 
-    await Medicine.bulkWrite(operationsWithArchiveGuard, { session });
-
-    const updatedMedicines = await Medicine.find({
-      _id: { $in: medicineIds },
-      isArchived: { $ne: true }
-    })
-      .sort({ name: 1 })
-      .session(session);
-
-    if (safeIdempotencyKey) {
-      await StockOperation.create(
-        [
-          {
-            userId: user._id,
-            idempotencyKey: safeIdempotencyKey,
-            medicineIds,
-            createdBy: {
-              role: user.role,
-              name: user.name
-            }
+      const operationsWithArchiveGuard = operations.map((op) => ({
+        updateOne: {
+          ...op.updateOne,
+          filter: {
+            ...op.updateOne.filter,
+            isArchived: { $ne: true }
           }
-        ],
-        { session }
+        }
+      }));
+
+      await Medicine.bulkWrite(operationsWithArchiveGuard, { session });
+
+      const updatedMedicines = await Medicine.find({
+        _id: { $in: medicineIds },
+        isArchived: { $ne: true }
+      })
+        .sort({ name: 1 })
+        .session(session);
+
+      const quantityById = new Map(groupedItems.map((item) => [item.medicineId, item.quantity]));
+      await recordStockAdjustments(
+        updatedMedicines.map((medicine) => ({
+          medicineId: medicine._id,
+          medicineName: medicine.name,
+          type: "increase",
+          previousStock: medicine.stock - quantityById.get(String(medicine._id)),
+          newStock: medicine.stock
+        })),
+        user,
+        session
       );
-    }
 
-    await session.commitTransaction();
-    return updatedMedicines;
+      if (safeIdempotencyKey) {
+        await StockOperation.create(
+          [
+            {
+              userId: user._id,
+              idempotencyKey: safeIdempotencyKey,
+              medicineIds,
+              createdBy: {
+                role: user.role,
+                name: user.name
+              }
+            }
+          ],
+          { session }
+        );
+      }
+
+      return updatedMedicines;
+    });
   } catch (error) {
-    await safeAbortTransaction(session);
-
     if (safeIdempotencyKey && error?.code === 11000) {
       const existingOperation = await findStockOperationByIdempotency({
         userId: user._id,
@@ -344,25 +367,38 @@ const increaseStockBulk = async ({ items, user, idempotencyKey }) => {
     }
 
     throw error;
-  } finally {
-    session.endSession();
   }
 };
 
-const updateStock = async ({ medicineId, stock }) => {
-  if (typeof stock !== "number" || stock < 0) {
-    throw new AppError("Qoldiq son bo'lishi va manfiy bo'lmasligi kerak", 400);
+const updateStock = async ({ medicineId, stock, user }) => {
+  if (!Number.isInteger(stock) || stock < 0) {
+    throw new AppError("Qoldiq butun son bo'lishi va manfiy bo'lmasligi kerak", 400);
   }
 
   const medicine = await Medicine.findOneAndUpdate(
     { _id: medicineId, isArchived: { $ne: true } },
     { $set: { stock } },
-    { new: true, runValidators: true }
+    { new: false, runValidators: true }
   );
 
   if (!medicine) {
     throw new AppError("Dori topilmadi", 404);
   }
+
+  const previousStock = medicine.stock;
+  medicine.stock = stock;
+  await recordStockAdjustments(
+    [
+      {
+        medicineId: medicine._id,
+        medicineName: medicine.name,
+        type: "set",
+        previousStock,
+        newStock: stock
+      }
+    ],
+    user
+  );
 
   return medicine;
 };

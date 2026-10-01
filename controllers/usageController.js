@@ -40,7 +40,8 @@ const getMyChecks = asyncHandler(async (req, res) => {
     search: req.query.q,
     lorIdentity: req.query.lorIdentity,
     specialistId: req.query.specialistId,
-    specialistName: req.query.specialistName
+    specialistName: req.query.specialistName,
+    limit: req.query.limit
   });
 
   res.status(200).json({

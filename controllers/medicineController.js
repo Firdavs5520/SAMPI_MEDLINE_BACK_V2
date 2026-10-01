@@ -45,7 +45,8 @@ const deleteMedicine = asyncHandler(async (req, res) => {
 const increaseStock = asyncHandler(async (req, res) => {
   const medicine = await medicineService.increaseStock({
     medicineId: req.params.id,
-    quantity: toNumber(req.body.quantity)
+    quantity: toNumber(req.body.quantity),
+    user: req.user
   });
   res.status(200).json({ success: true, data: medicine });
 });
@@ -70,7 +71,8 @@ const increaseStockBulk = asyncHandler(async (req, res) => {
 const updateStock = asyncHandler(async (req, res) => {
   const medicine = await medicineService.updateStock({
     medicineId: req.params.id,
-    stock: toNumber(req.body.stock)
+    stock: toNumber(req.body.stock),
+    user: req.user
   });
   res.status(200).json({ success: true, data: medicine });
 });

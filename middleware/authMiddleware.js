@@ -24,6 +24,11 @@ const protect = asyncHandler(async (req, res, next) => {
     throw new AppError("Token noto'g'ri yoki muddati tugagan", 401);
   }
 
+  // TV stream tokeni (URL da yuriladi) faqat SSE uchun, oddiy API uchun emas.
+  if (decoded.purpose) {
+    throw new AppError("Token noto'g'ri yoki muddati tugagan", 401);
+  }
+
   const user = await User.findById(decoded.id).select("-password");
   if (!user) {
     throw new AppError("Token uchun foydalanuvchi topilmadi", 401);
