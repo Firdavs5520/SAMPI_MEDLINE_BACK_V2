@@ -1,7 +1,7 @@
 {
-  "name": "sampi-medline-backend",
+  "name": "sampi-medicine-backend",
   "version": "1.0.0",
-  "description": "Production-ready backend for Sampi Medline clinic management system",
+  "description": "Production-ready backend for Sampi Medicine clinic management system",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

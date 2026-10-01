@@ -14,6 +14,10 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 const app = express();
 
+// Render kabi hostinglarda so'rov bitta proxy orqali keladi; req.ip haqiqiy
+// mijoz IP manzili bo'lishi uchun (login cheklovi shunga tayanadi).
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
+
 const normalizeOrigin = (value) =>
   String(value || "")
     .trim()

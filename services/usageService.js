@@ -243,6 +243,11 @@ const createUniqueCheckId = async (session) => {
   throw new AppError("Yagona chek ID yaratib bo'lmadi", 500);
 };
 
+// Check modelidagi (createdBy.userId, idempotencyKey) unique+sparse indeksi
+// kalitsiz cheklarni ham "null" sifatida indekslaydi, shuning uchun bir
+// foydalanuvchining ikkinchi kalitsiz cheki takror kalit xatosiga uchrardi.
+const createAutoIdempotencyKey = () => `auto-${crypto.randomUUID()}`;
+
 const findCheckByIdempotency = async ({ userId, idempotencyKey }) => {
   if (!idempotencyKey) return null;
 
@@ -413,6 +418,7 @@ const useMedicine = async ({ medicineId, quantity, user }) => {
       [
         {
           checkId,
+          idempotencyKey: createAutoIdempotencyKey(),
           type: "medicine",
           items: [
             {
@@ -491,6 +497,7 @@ const useService = async ({
       [
         {
           checkId,
+          idempotencyKey: createAutoIdempotencyKey(),
           type: "service",
           items: [
             {
@@ -958,7 +965,7 @@ const createNurseCheckout = async ({
       [
         {
           checkId,
-          ...(safeIdempotencyKey ? { idempotencyKey: safeIdempotencyKey } : {}),
+          idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
           type: resolveCheckType(normalizedMedicineItems.length, normalizedServiceItems.length),
           items: checkItems,
           total: Number(total.toFixed(2)),
@@ -1107,7 +1114,7 @@ const createLorCheckout = async ({
       [
         {
           checkId,
-          ...(safeIdempotencyKey ? { idempotencyKey: safeIdempotencyKey } : {}),
+          idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
           type: "service",
           items: checkItems,
           total: Number(total.toFixed(2)),

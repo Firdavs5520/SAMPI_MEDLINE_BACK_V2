@@ -42,7 +42,12 @@ const bootstrapDefaultUsers = async () => {
   const shouldSeed = process.env.SEED_DEFAULT_USERS === "true";
   if (!shouldSeed) return;
 
-  const defaultPassword = process.env.DEFAULT_PASSWORD || "Passw0rd!";
+  const defaultPassword = String(process.env.DEFAULT_PASSWORD || "").trim();
+  if (!defaultPassword) {
+    // eslint-disable-next-line no-console
+    console.warn("SEED_DEFAULT_USERS=true, lekin DEFAULT_PASSWORD berilmagan. Seed o'tkazib yuborildi.");
+    return;
+  }
 
   for (const userData of defaultUsers) {
     const exists = await User.findOne({ email: userData.email });

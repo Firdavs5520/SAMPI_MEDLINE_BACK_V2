@@ -81,51 +81,131 @@ const getAllChecks = async () => {
   return Check.find().sort({ createdAt: -1 });
 };
 
-const resolvePeriodMatch = (period, fieldName = "createdAt") => {
+const resolvePeriodRange = (period) => {
   const nowUtc = new Date();
   const nowInTashkent = getNowInTashkent(nowUtc);
   const safePeriod = String(period || "all").toLowerCase();
 
   if (safePeriod === "today") {
     const dayStartInTashkent = getTashkentDayStart(nowInTashkent);
-    const startUtc = toUtcFromTashkentDate(dayStartInTashkent);
-    return { [fieldName]: { $gte: startUtc, $lte: nowUtc } };
+    return { start: toUtcFromTashkentDate(dayStartInTashkent), end: nowUtc };
   }
 
   if (safePeriod === "week") {
     const weekStartInTashkent = getTashkentDayStart(nowInTashkent);
     weekStartInTashkent.setUTCDate(weekStartInTashkent.getUTCDate() - 6);
-    const startUtc = toUtcFromTashkentDate(weekStartInTashkent);
-    return { [fieldName]: { $gte: startUtc, $lte: nowUtc } };
+    return { start: toUtcFromTashkentDate(weekStartInTashkent), end: nowUtc };
   }
 
   if (safePeriod === "month") {
     const monthStartInTashkent = new Date(nowInTashkent);
     monthStartInTashkent.setUTCMonth(monthStartInTashkent.getUTCMonth() - 1);
     monthStartInTashkent.setUTCHours(0, 0, 0, 0);
-    const startUtc = toUtcFromTashkentDate(monthStartInTashkent);
-    return { [fieldName]: { $gte: startUtc, $lte: nowUtc } };
+    return { start: toUtcFromTashkentDate(monthStartInTashkent), end: nowUtc };
   }
 
-  return {};
+  return null;
+};
+
+const toRangeMatch = (range, fieldName) =>
+  range ? { [fieldName]: { $gte: range.start, $lte: range.end } } : {};
+
+// Kassaga haqiqatda tushgan pul to'lov vaqti bo'yicha hisoblanadi: eski qarz bugun
+// yopilsa, u bugungi tushumga kiradi. Har bir yozuv uchun "collections" massivi
+// yasaladi: debtPayments dagi to'lovlar + debtPayments ga yozilmagan (eski
+// yozuvlardagi) to'lov qismi yozuv sanasi bilan.
+const buildCollectionStages = (range) => {
+  const isInRange = (field) =>
+    range ? { $and: [{ $gte: [field, range.start] }, { $lte: [field, range.end] }] } : true;
+
+  return [
+    ...(range
+      ? [
+          {
+            $match: {
+              $or: [
+                { debtPayments: { $elemMatch: { paidAt: { $gte: range.start, $lte: range.end } } } },
+                { entryDate: { $gte: range.start, $lte: range.end } }
+              ]
+            }
+          }
+        ]
+      : []),
+    {
+      $addFields: {
+        unrecordedPaidAmount: {
+          $subtract: [
+            { $ifNull: ["$paidAmount", 0] },
+            { $sum: { $ifNull: ["$debtPayments.amount", []] } }
+          ]
+        }
+      }
+    },
+    {
+      $addFields: {
+        collections: {
+          $concatArrays: [
+            {
+              $map: {
+                input: {
+                  $filter: {
+                    input: { $ifNull: ["$debtPayments", []] },
+                    as: "payment",
+                    cond: isInRange("$$payment.paidAt")
+                  }
+                },
+                as: "payment",
+                in: {
+                  amount: "$$payment.amount",
+                  paymentMethod: "$$payment.paymentMethod",
+                  paidAt: "$$payment.paidAt"
+                }
+              }
+            },
+            {
+              $cond: [
+                {
+                  $and: [{ $gt: ["$unrecordedPaidAmount", 0.009] }, isInRange("$entryDate")]
+                },
+                [
+                  {
+                    amount: "$unrecordedPaidAmount",
+                    paymentMethod: "$paymentMethod",
+                    paidAt: "$entryDate"
+                  }
+                ],
+                []
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { $unwind: "$collections" }
+  ];
+};
+
+const sumCollections = async (range, extraStages = []) => {
+  const [result] = await CashierEntry.aggregate([
+    ...buildCollectionStages(range),
+    ...extraStages,
+    { $group: { _id: null, total: { $sum: "$collections.amount" } } }
+  ]);
+
+  return Number(result?.total || 0);
 };
 
 const getTotalRevenue = async ({ period = "all" } = {}) => {
-  const match = resolvePeriodMatch(period, "entryDate");
-  const [result] = await CashierEntry.aggregate([
-    ...(Object.keys(match).length > 0 ? [{ $match: match }] : []),
-    {
-      $group: {
-        _id: null,
-        totalRevenue: { $sum: "$paidAmount" },
-        checksCount: { $sum: 1 }
-      }
-    }
+  const range = resolvePeriodRange(period);
+  const entryMatch = toRangeMatch(range, "entryDate");
+  const [totalRevenue, checksCount] = await Promise.all([
+    sumCollections(range),
+    CashierEntry.countDocuments(entryMatch)
   ]);
 
   return {
-    totalRevenue: result?.totalRevenue || 0,
-    checksCount: result?.checksCount || 0,
+    totalRevenue,
+    checksCount,
     period: String(period || "all").toLowerCase()
   };
 };
@@ -160,21 +240,18 @@ const buildCashierRoleStages = (periodMatch, role) => [
   }
 ];
 
-const aggregateRevenueAndChecks = async (periodMatch, role) => {
-  const [result] = await CashierEntry.aggregate([
-    ...buildCashierRoleStages(periodMatch, role),
-    {
-      $group: {
-        _id: null,
-        totalRevenue: { $sum: "$paidAmount" },
-        checksCount: { $sum: 1 }
-      }
-    }
+const aggregateRevenueAndChecks = async (periodRange, role) => {
+  const [totalRevenue, [countResult]] = await Promise.all([
+    sumCollections(periodRange, buildCashierRoleStages({}, role)),
+    CashierEntry.aggregate([
+      ...buildCashierRoleStages(toRangeMatch(periodRange, "entryDate"), role),
+      { $count: "checksCount" }
+    ])
   ]);
 
   return {
-    totalRevenue: result?.totalRevenue || 0,
-    checksCount: result?.checksCount || 0
+    totalRevenue,
+    checksCount: countResult?.checksCount || 0
   };
 };
 
@@ -245,38 +322,43 @@ const aggregateMedicineTypesFromChecks = async (periodMatch, role) => {
   return result?.count || 0;
 };
 
-const aggregateLorIdentityStats = async (periodMatch) => {
-  const groupedRows = await CashierEntry.aggregate([
-    ...buildCashierRoleStages(periodMatch, "lor"),
-    {
-      $group: {
-        _id: "$checkLorIdentity",
-        totalRevenue: { $sum: "$paidAmount" },
-        checksCount: { $sum: 1 }
+const aggregateLorIdentityStats = async (periodRange) => {
+  const [revenueRows, countRows] = await Promise.all([
+    CashierEntry.aggregate([
+      ...buildCollectionStages(periodRange),
+      ...buildCashierRoleStages({}, "lor"),
+      {
+        $group: {
+          _id: "$checkLorIdentity",
+          totalRevenue: { $sum: "$collections.amount" }
+        }
       }
-    }
+    ]),
+    CashierEntry.aggregate([
+      ...buildCashierRoleStages(toRangeMatch(periodRange, "entryDate"), "lor"),
+      {
+        $group: {
+          _id: "$checkLorIdentity",
+          checksCount: { $sum: 1 }
+        }
+      }
+    ])
   ]);
 
-  const stats = {
-    lor1: { totalRevenue: 0, checksCount: 0 }
-  };
+  const findRow = (rows) => rows.find((item) => String(item?._id || "").toLowerCase() === "lor1");
 
-  for (const item of groupedRows) {
-    const key = String(item?._id || "").toLowerCase();
-    if (key === "lor1") {
-      stats.lor1 = {
-        totalRevenue: Number(item.totalRevenue || 0),
-        checksCount: Number(item.checksCount || 0)
-      };
+  return {
+    lor1: {
+      totalRevenue: Number(findRow(revenueRows)?.totalRevenue || 0),
+      checksCount: Number(findRow(countRows)?.checksCount || 0)
     }
-  }
-
-  return stats;
+  };
 };
 
-const buildRoleOverview = async (periodMatch, role) => {
+const buildRoleOverview = async (periodRange, role) => {
+  const periodMatch = toRangeMatch(periodRange, "entryDate");
   const [summary, topItem, medicineTypesCount] = await Promise.all([
-    aggregateRevenueAndChecks(periodMatch, role),
+    aggregateRevenueAndChecks(periodRange, role),
     aggregateTopItem(periodMatch, role),
     aggregateMedicineTypesFromChecks(periodMatch, role)
   ]);
@@ -290,14 +372,14 @@ const buildRoleOverview = async (periodMatch, role) => {
 
 const getManagerOverview = async ({ period = "all" } = {}) => {
   const safePeriod = String(period || "all").toLowerCase();
-  const periodMatch = resolvePeriodMatch(safePeriod, "entryDate");
+  const periodRange = resolvePeriodRange(safePeriod);
 
   const [inventoryMedicineTypes, nurse, lor, total, lorIdentities] = await Promise.all([
     Medicine.countDocuments({ isArchived: { $ne: true } }),
-    buildRoleOverview(periodMatch, "nurse"),
-    buildRoleOverview(periodMatch, "lor"),
-    buildRoleOverview(periodMatch, null),
-    aggregateLorIdentityStats(periodMatch)
+    buildRoleOverview(periodRange, "nurse"),
+    buildRoleOverview(periodRange, "lor"),
+    buildRoleOverview(periodRange, null),
+    aggregateLorIdentityStats(periodRange)
   ]);
 
   return {
@@ -375,9 +457,82 @@ const getMostUsedMedicines = async (limit = 10) => {
   ]);
 };
 
+const aggregateShiftCollections = async ({ start, end }) => {
+  const [result] = await CashierEntry.aggregate([
+    ...buildCollectionStages({ start, end }),
+    {
+      $facet: {
+        overall: [
+          {
+            $group: {
+              _id: null,
+              collectedAmount: { $sum: "$collections.amount" },
+              debtRepaymentAmount: {
+                $sum: {
+                  $cond: [{ $lt: ["$entryDate", start] }, "$collections.amount", 0]
+                }
+              }
+            }
+          }
+        ],
+        byPaymentMethod: [
+          {
+            $group: {
+              _id: "$collections.paymentMethod",
+              collectedAmount: { $sum: "$collections.amount" }
+            }
+          }
+        ]
+      }
+    }
+  ]);
+
+  return {
+    collectedAmount: Number(result?.overall?.[0]?.collectedAmount || 0),
+    debtRepaymentAmount: Number(result?.overall?.[0]?.debtRepaymentAmount || 0),
+    byPaymentMethod: new Map(
+      (result?.byPaymentMethod || []).map((item) => [item._id, Number(item.collectedAmount || 0)])
+    )
+  };
+};
+
+const mergePaymentMethodRows = (entryRows, collectedByMethod) => {
+  const rowsByMethod = new Map();
+
+  for (const item of entryRows) {
+    rowsByMethod.set(item._id, {
+      paymentMethod: item._id,
+      totalAmount: Number(item.totalAmount || 0),
+      totalPaidAmount: 0,
+      totalDebtAmount: Number(item.totalDebtAmount || 0),
+      entriesCount: Number(item.entriesCount || 0)
+    });
+  }
+
+  for (const [paymentMethod, collectedAmount] of collectedByMethod) {
+    const row = rowsByMethod.get(paymentMethod) || {
+      paymentMethod,
+      totalAmount: 0,
+      totalPaidAmount: 0,
+      totalDebtAmount: 0,
+      entriesCount: 0
+    };
+    row.totalPaidAmount = collectedAmount;
+    rowsByMethod.set(paymentMethod, row);
+  }
+
+  return Array.from(rowsByMethod.values()).sort((a, b) =>
+    String(a.paymentMethod).localeCompare(String(b.paymentMethod))
+  );
+};
+
 const getShiftCloseReport = async ({ date } = {}) => {
+  const requestedDate = String(date || "").trim()
+    ? date
+    : await cashierSettingsService.getCurrentShiftDate();
   const { safeDateString, start, end, fromLabel, toLabel, settings } =
-    await getShiftRange(date);
+    await getShiftRange(requestedDate);
+  const collections = await aggregateShiftCollections({ start, end });
 
   const [summary] = await CashierEntry.aggregate([
     {
@@ -467,17 +622,16 @@ const getShiftCloseReport = async ({ date } = {}) => {
     },
     totals: {
       totalAmount: Number(overall.totalAmount || 0),
-      totalPaidAmount: Number(overall.totalPaidAmount || 0),
+      // Smena davomida kassaga haqiqatda tushgan pul (eski qarzlar to'lovi bilan).
+      totalPaidAmount: collections.collectedAmount,
+      debtRepaymentAmount: collections.debtRepaymentAmount,
       totalDebtAmount: Number(overall.totalDebtAmount || 0),
       entriesCount: Number(overall.entriesCount || 0)
     },
-    byPaymentMethod: (summary?.byPaymentMethod || []).map((item) => ({
-      paymentMethod: item._id,
-      totalAmount: Number(item.totalAmount || 0),
-      totalPaidAmount: Number(item.totalPaidAmount || 0),
-      totalDebtAmount: Number(item.totalDebtAmount || 0),
-      entriesCount: Number(item.entriesCount || 0)
-    })),
+    byPaymentMethod: mergePaymentMethodRows(
+      summary?.byPaymentMethod || [],
+      collections.byPaymentMethod
+    ),
     byDepartment: (summary?.byDepartment || []).map((item) => ({
       department: item._id,
       totalAmount: Number(item.totalAmount || 0),
