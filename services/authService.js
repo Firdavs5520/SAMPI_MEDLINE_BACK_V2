@@ -2,9 +2,15 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const AppError = require("../utils/AppError");
 
-const createToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "1d"
+// TV ekrani kun-u tun ochiq turadi, shuning uchun uning tokeni uzoqroq amal qiladi.
+const getTokenExpiresIn = (role) =>
+  role === "tv"
+    ? process.env.JWT_TV_EXPIRES_IN || "365d"
+    : process.env.JWT_EXPIRES_IN || "1d";
+
+const createToken = (user) =>
+  jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: getTokenExpiresIn(user.role)
   });
 
 const login = async ({ email, password }) => {
@@ -20,7 +26,7 @@ const login = async ({ email, password }) => {
     throw new AppError("Email yoki parol noto'g'ri", 401);
   }
 
-  const token = createToken(user._id);
+  const token = createToken(user);
 
   return {
     token,

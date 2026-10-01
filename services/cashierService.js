@@ -8,7 +8,7 @@ const lorQueueService = require("./lorQueueService");
 const DEPARTMENTS = ["lor", "nurse", "procedure"];
 const SPECIALIST_TYPES = ["nurse", "lor"];
 const PAYMENT_METHODS = ["cash", "card", "transfer"];
-const TIME_SCOPES = ["all", "active", "history"];
+const TIME_SCOPES = ["all", "active", "history", "any"];
 const TASHKENT_UTC_OFFSET_HOURS = 5;
 const CHECK_CREATOR_ROLES = ["nurse", "lor"];
 const isValidObjectId = (value) =>
@@ -129,7 +129,7 @@ const normalizeTimeScope = (value) => {
     .toLowerCase();
 
   if (!TIME_SCOPES.includes(safe)) {
-    throw new AppError("timeScope all, active yoki history bo'lishi kerak", 400);
+    throw new AppError("timeScope all, active, history yoki any bo'lishi kerak", 400);
   }
 
   return safe;
@@ -336,7 +336,10 @@ const buildListFilter = async ({
   search,
   timeScope = "all"
 }) => {
-  const { start: dayStart, end: dayEnd, safeDateString } = getDateRange(date);
+  const requestedDate = String(date || "").trim()
+    ? date
+    : await cashierSettingsService.getCurrentShiftDate();
+  const { start: dayStart, end: dayEnd, safeDateString } = getDateRange(requestedDate);
   const {
     start: shiftStart,
     end: shiftEnd,
@@ -354,6 +357,7 @@ const buildListFilter = async ({
   const safeSearch = String(search || "").trim();
   const andConditions = [];
 
+  // "any" - sana cheklovisiz (masalan, barcha ochiq qarzlarni ko'rish uchun).
   if (safeTimeScope === "active") {
     andConditions.push({
       entryDate: { $gte: shiftStart, $lte: shiftEnd }
@@ -365,7 +369,7 @@ const buildListFilter = async ({
     andConditions.push({
       $or: [{ entryDate: { $lt: shiftStart } }, { entryDate: { $gt: shiftEnd } }]
     });
-  } else {
+  } else if (safeTimeScope === "all") {
     andConditions.push({
       entryDate: { $gte: dayStart, $lte: dayEnd }
     });
@@ -399,7 +403,9 @@ const buildListFilter = async ({
   }
 
   const filter =
-    andConditions.length === 1
+    andConditions.length === 0
+      ? {}
+      : andConditions.length === 1
       ? andConditions[0]
       : {
           $and: andConditions
@@ -499,6 +505,8 @@ const createEntryFromCheck = async ({ payload, user }) => {
     throw new AppError("Faqat nurse yoki lor yaratgan chek kassada qabul qilinadi", 400);
   }
 
+  // checkRef bo'yicha unique indeks bir vaqtdagi ikki qabulni ham to'xtatadi
+  // (errorMiddleware 11000 ni 409 ga aylantiradi).
   const existingEntry = await CashierEntry.findOne({ checkRef: check._id }).lean();
   if (existingEntry) {
     throw new AppError("Bu chek allaqachon kassada qabul qilingan", 400);
@@ -1035,29 +1043,42 @@ const payDebt = async ({ entryId, payload, user }) => {
   const newPaidAmount = Number((Number(entry.paidAmount || 0) + amount).toFixed(2));
   const remainingDebtAmount = Number((previousDebtAmount - amount).toFixed(2));
   const note = String(payload?.note || "").trim();
-
-  entry.paidAmount = newPaidAmount;
-  entry.debtAmount = remainingDebtAmount;
-  entry.paymentMethod = paymentMethod;
-  entry.debtPayments = [
-    ...(Array.isArray(entry.debtPayments) ? entry.debtPayments : []),
-    createDebtPaymentRecord({
-      amount,
-      previousDebtAmount,
-      remainingDebtAmount,
-      paidTotalAfterPayment: newPaidAmount,
-      paymentMethod,
-      note,
-      user
-    })
-  ];
+  const $set = {
+    paidAmount: newPaidAmount,
+    debtAmount: remainingDebtAmount,
+    paymentMethod
+  };
 
   if (payload?.patientPhone !== undefined) {
-    entry.patientPhone = String(payload.patientPhone || "").trim();
+    $set.patientPhone = String(payload.patientPhone || "").trim();
   }
 
-  await entry.save();
-  return entry;
+  // Qarz qiymati o'qilgandan beri o'zgarmagan bo'lsagina yozamiz, aks holda
+  // bir vaqtda kelgan ikki to'lov qarzni ikki marta yopib yuborardi.
+  const updatedEntry = await CashierEntry.findOneAndUpdate(
+    { _id: entry._id, debtAmount: previousDebtAmount },
+    {
+      $set,
+      $push: {
+        debtPayments: createDebtPaymentRecord({
+          amount,
+          previousDebtAmount,
+          remainingDebtAmount,
+          paidTotalAfterPayment: newPaidAmount,
+          paymentMethod,
+          note,
+          user
+        })
+      }
+    },
+    { new: true, runValidators: true }
+  );
+
+  if (!updatedEntry) {
+    throw new AppError("Qarz holati o'zgargan. Sahifani yangilab, qayta urinib ko'ring", 409);
+  }
+
+  return updatedEntry;
 };
 
 const deleteEntry = async ({ entryId, user }) => {

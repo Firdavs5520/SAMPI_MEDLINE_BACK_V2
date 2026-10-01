@@ -62,6 +62,16 @@ const streamLorQueue = async ({
   const safeLimit = normalizeLimit(limit);
   const normalizedLorIdentity = lorQueueService.normalizeLorIdentity(lorIdentity);
   let closed = false;
+  let heartbeat = null;
+  let unsubscribe = null;
+
+  // "close" birinchi snapshotdan oldin ulanadi, aks holda erta uzilgan ulanishda
+  // tinglovchi va heartbeat taymeri xotirada qolib ketardi.
+  res.on("close", () => {
+    closed = true;
+    clearInterval(heartbeat);
+    unsubscribe?.();
+  });
 
   res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -88,24 +98,19 @@ const streamLorQueue = async ({
   };
 
   await sendSnapshot("snapshot");
+  if (closed) return;
 
-  const unsubscribe = subscribeLorQueueChanges((event) => {
+  unsubscribe = subscribeLorQueueChanges((event) => {
     if (event?.lorIdentity && event.lorIdentity !== normalizedLorIdentity) return;
     if (date && event?.shiftDate && event.shiftDate !== date) return;
     sendSnapshot("queue");
   });
 
-  const heartbeat = setInterval(() => {
+  heartbeat = setInterval(() => {
     if (!closed && !res.destroyed && !res.writableEnded) {
       res.write(": heartbeat\n\n");
     }
   }, 25000);
-
-  req.on("close", () => {
-    closed = true;
-    clearInterval(heartbeat);
-    unsubscribe();
-  });
 };
 
 module.exports = {

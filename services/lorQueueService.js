@@ -5,7 +5,6 @@ const cashierSettingsService = require("./cashierSettingsService");
 const { emitLorQueueChanged } = require("./lorQueueEvents");
 const AppError = require("../utils/AppError");
 
-const TASHKENT_UTC_OFFSET_HOURS = 5;
 const LOR_IDENTITIES = ["lor1"];
 const TICKET_LIMIT = 80;
 const IDEMPOTENCY_KEY_MAX_LENGTH = 120;
@@ -17,14 +16,8 @@ const CANCEL_REASONS = new Set([
 ]);
 let queueIndexMaintenancePromise = null;
 
-const toTashkentDateString = (date = new Date()) =>
-  new Date(date.getTime() + TASHKENT_UTC_OFFSET_HOURS * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-
 const normalizeDateString = (value) => {
   const safe = String(value || "").trim();
-  if (!safe) return toTashkentDateString(new Date());
   if (!/^\d{4}-\d{2}-\d{2}$/.test(safe)) {
     throw new AppError("Sana YYYY-MM-DD formatida bo'lishi kerak", 400);
   }
@@ -45,7 +38,9 @@ const parseDateParts = (dateString) => {
 };
 
 const getTodayShiftRange = async (date) => {
-  const safeDateString = normalizeDateString(date);
+  const safeDateString = String(date || "").trim()
+    ? normalizeDateString(date)
+    : await cashierSettingsService.getCurrentShiftDate();
   const shift = await cashierSettingsService.getShiftRange({
     dateString: safeDateString,
     dateParts: parseDateParts(safeDateString)
@@ -53,6 +48,13 @@ const getTodayShiftRange = async (date) => {
 
   return { safeDateString, shift };
 };
+
+// Smena almashganda ham qabul qilinayotgan bemor yo'qolib qolmasligi uchun
+// "in_progress" holatidagi navbat joriy va oldingi smena ichidan qidiriladi.
+const getInProgressShiftDates = (safeDateString) => [
+  safeDateString,
+  cashierSettingsService.shiftDateString(safeDateString, -1)
+];
 
 const normalizeLorIdentity = (value) => {
   const safe = String(value || "lor1").trim().toLowerCase();
@@ -518,7 +520,7 @@ const getLorTickets = async ({ user, lorIdentity = "lor1", limit = TICKET_LIMIT 
 
   const [current, waiting] = await Promise.all([
     LorQueueTicket.findOne({
-      shiftDate: safeDateString,
+      shiftDate: { $in: getInProgressShiftDates(safeDateString) },
       lorIdentity: normalizedLorIdentity,
       status: "in_progress"
     })
@@ -562,7 +564,7 @@ const callTicket = async ({
   const { safeDateString } = await getTodayShiftRange();
 
   const existingCurrent = await LorQueueTicket.findOne({
-    shiftDate: safeDateString,
+    shiftDate: { $in: getInProgressShiftDates(safeDateString) },
     lorIdentity: normalizedLorIdentity,
     status: "in_progress"
   });
@@ -636,11 +638,9 @@ const cancelTicket = async ({
   assertLorUser(user);
   assertObjectId(ticketId, "Navbat ID");
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
-  const { safeDateString } = await getTodayShiftRange();
 
   const ticket = await LorQueueTicket.findOne({
     _id: ticketId,
-    shiftDate: safeDateString,
     lorIdentity: normalizedLorIdentity
   });
 
@@ -672,7 +672,7 @@ const cancelTicket = async ({
   await ticket.save();
 
   notifyQueueChanged({
-    shiftDate: safeDateString,
+    shiftDate: ticket.shiftDate,
     lorIdentity: normalizedLorIdentity,
     action: "cancelled",
     ticket
@@ -691,10 +691,8 @@ const getActiveTicketForCheckout = async ({
   assertLorUser(user);
   assertObjectId(ticketId, "Navbat ID");
   const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
-  const { safeDateString } = await getTodayShiftRange();
   const query = LorQueueTicket.findOne({
     _id: ticketId,
-    shiftDate: safeDateString,
     lorIdentity: normalizedLorIdentity,
     status: "in_progress"
   });
@@ -765,7 +763,7 @@ const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1", limit = 16 } 
   const now = new Date();
   const [current, waiting] = await Promise.all([
     LorQueueTicket.findOne({
-      shiftDate: safeDateString,
+      shiftDate: { $in: getInProgressShiftDates(safeDateString) },
       lorIdentity: normalizedLorIdentity,
       status: "in_progress"
     })
@@ -782,6 +780,7 @@ const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1", limit = 16 } 
   ]);
 
   return {
+    safeDateString,
     date: safeDateString,
     shift,
     now,

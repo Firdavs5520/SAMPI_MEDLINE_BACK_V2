@@ -801,7 +801,7 @@ const buildMonthlyWorkbook = async ({ month }) => {
     )
   );
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Sampi Medline";
+  workbook.creator = "Sampi Medicine";
   workbook.created = new Date();
 
   reports.forEach((report, index) => {

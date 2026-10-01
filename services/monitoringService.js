@@ -57,7 +57,7 @@ const record5xxEvent = async ({ req, statusCode, message }) => {
 
 const getHealthPayload = () => ({
   success: true,
-  message: "Sampi Medline API ishlayapti",
+  message: "Sampi Medicine API ishlayapti",
   now: new Date().toISOString(),
   uptimeSec: Math.floor(process.uptime()),
   startedAt: BOOT_AT.toISOString(),
