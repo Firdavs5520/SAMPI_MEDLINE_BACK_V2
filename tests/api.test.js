@@ -502,6 +502,59 @@ test("LOR chekini 12 soatdan keyin tahrirlab bo'lmaydi", async () => {
   assert.equal(stored.total, 100000);
 });
 
+test("kassa: kutilmagan xarajat qo'shiladi, jami hisoblanadi va bekor qilinadi", async () => {
+  const bad = await ctx.call("POST", "/cashier/expenses", {
+    token: tokens.cashier,
+    body: { amount: 0, reason: "Xato" }
+  });
+  assert.equal(bad.status, 400);
+  const noReason = await ctx.call("POST", "/cashier/expenses", {
+    token: tokens.cashier,
+    body: { amount: 5000, reason: "  " }
+  });
+  assert.equal(noReason.status, 400);
+  const byLor = await ctx.call("POST", "/cashier/expenses", {
+    token: tokens.lor,
+    body: { amount: 5000, reason: "Xato" }
+  });
+  assert.equal(byLor.status, 403);
+
+  const first = await ctx.call("POST", "/cashier/expenses", {
+    token: tokens.cashier,
+    body: { amount: 25000, reason: "Suv va stakan", paymentMethod: "cash" }
+  });
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  const second = await ctx.call("POST", "/cashier/expenses", {
+    token: tokens.cashier,
+    body: { amount: 40000, reason: "Kur'er", paymentMethod: "card" }
+  });
+  assert.equal(second.status, 201);
+
+  const list = await ctx.call("GET", "/cashier/expenses", { token: tokens.manager });
+  assert.equal(list.status, 200);
+  assert.equal(list.data.expenses.length, 2);
+  assert.equal(list.data.totals.total, 65000);
+  assert.equal(list.data.totals.cash, 25000);
+  assert.equal(list.data.totals.card, 40000);
+
+  const canceled = await ctx.call("POST", `/cashier/expenses/${second.data._id}/cancel`, {
+    token: tokens.cashier
+  });
+  assert.equal(canceled.status, 200);
+  const again = await ctx.call("POST", `/cashier/expenses/${second.data._id}/cancel`, {
+    token: tokens.cashier
+  });
+  assert.equal(again.status, 400);
+
+  const after = await ctx.call("GET", "/cashier/expenses", { token: tokens.cashier });
+  assert.equal(after.data.totals.total, 25000);
+  assert.equal(after.data.totals.count, 1);
+  assert.equal(after.data.expenses.length, 2);
+
+  const otherDay = await ctx.call("GET", "/cashier/expenses?date=2020-01-01", { token: tokens.cashier });
+  assert.equal(otherDay.data.expenses.length, 0);
+});
+
 test("TV SSE: uzilgan ulanishlar tinglovchi qoldirmaydi", async () => {
   const streamToken = (await ctx.call("GET", "/tv/lor-queue/stream-token", { token: tokens.tv })).data.token;
   const url = `${ctx.base}/tv/lor-queue/stream?lorIdentity=lor1&streamToken=${streamToken}`;
