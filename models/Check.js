@@ -8,6 +8,11 @@ const checkItemSchema = new mongoose.Schema(
       required: true,
       immutable: true
     },
+    serviceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Service",
+      immutable: true
+    },
     name: {
       type: String,
       required: true,
@@ -125,6 +130,17 @@ const checkSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
       default: Date.now,
+      immutable: true
+    },
+    // LOR 12 soat ichida chekni tuzatsa (usageService.updateLorCheck) shu yerga yoziladi.
+    editedAt: {
+      type: Date,
+      default: null,
+      immutable: true
+    },
+    editHistory: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: undefined,
       immutable: true
     }
   },

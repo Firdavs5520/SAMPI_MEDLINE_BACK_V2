@@ -11,6 +11,7 @@ router.post("/medicine", allowRoles("nurse"), usageController.useMedicine);
 router.post("/service", allowRoles("nurse", "lor"), usageController.useService);
 router.post("/checkout", allowRoles("nurse"), usageController.createCheckout);
 router.post("/lor-checkout", allowRoles("lor"), usageController.createLorCheckout);
+router.patch("/lor-checks/:id", allowRoles("lor"), usageController.updateLorCheck);
 router.get("/my-checks", allowRoles("lor", "nurse"), usageController.getMyChecks);
 router.get("/lor-queue-tickets", allowRoles("lor"), usageController.getLorQueueTickets);
 router.post(

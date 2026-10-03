@@ -34,6 +34,27 @@ const useService = asyncHandler(async (req, res) => {
   });
 });
 
+const updateLorCheck = asyncHandler(async (req, res) => {
+  const services = Array.isArray(req.body.services)
+    ? req.body.services.map((item) => ({
+        serviceId: item.serviceId,
+        quantity: toNumber(item.quantity),
+        priceTier: item.priceTier
+      }))
+    : [];
+
+  const check = await usageService.updateLorCheck({
+    checkId: req.params.id,
+    services,
+    user: req.user
+  });
+
+  res.status(200).json({
+    success: true,
+    data: check
+  });
+});
+
 const getMyChecks = asyncHandler(async (req, res) => {
   const checks = await usageService.getMyChecks({
     user: req.user,
@@ -206,6 +227,7 @@ module.exports = {
   createCheckout,
   createLorCheckout,
   getMyChecks,
+  updateLorCheck,
   getLorQueueTickets,
   callLorQueueTicket,
   cancelLorQueueTicket,

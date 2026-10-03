@@ -980,6 +980,79 @@ const createNurseCheckout = async ({
   }
 };
 
+const LOR_CHECK_EDIT_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+const normalizeLorServiceItems = (services) => {
+  const serviceItems = Array.isArray(services) ? services : [];
+  if (serviceItems.length === 0) {
+    throw new AppError("Kamida bitta xizmat tanlanishi kerak", 400);
+  }
+
+  assertUniqueIds(
+    serviceItems,
+    "serviceId",
+    "Duplicate service is not allowed in one checkout"
+  );
+
+  const normalized = serviceItems.map((item) => ({
+    serviceId: item.serviceId,
+    quantity: Number(item.quantity),
+    priceTier: item.priceTier
+  }));
+  normalized.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
+  return normalized;
+};
+
+// LOR cheki qatorlari: chek yaratish va tahrirlashda bir xil narx/ruxsat qoidalari.
+const buildLorCheckItems = async ({ normalizedServiceItems, user, session }) => {
+  let total = 0;
+  const checkItems = [];
+  const serviceUsageDocs = [];
+  const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
+  const serviceDocs = await Service.find({
+    _id: { $in: serviceIds }
+  }).session(session);
+  const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
+
+  for (const item of normalizedServiceItems) {
+    const quantity = item.quantity;
+    validateQuantity(quantity);
+
+    const service = serviceMap.get(String(item.serviceId));
+    if (!service) {
+      throw new AppError("Xizmat topilmadi", 404);
+    }
+
+    enforceServiceRoleRule(service, user.role);
+    enforceLorServiceOwnership(service, user);
+
+    const resolved = resolveServicePrice({
+      service,
+      priceTier: item.priceTier,
+      userRole: user.role
+    });
+
+    serviceUsageDocs.push({
+      serviceId: service._id,
+      quantity,
+      usedBy: user._id,
+      ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
+    });
+
+    checkItems.push({
+      itemType: "service",
+      serviceId: service._id,
+      name: getServiceCheckItemName(service.name, resolved.tierLabel),
+      quantity,
+      price: resolved.price
+    });
+
+    total += quantity * resolved.price;
+  }
+
+  return { checkItems, serviceUsageDocs, total: Number(total.toFixed(2)) };
+};
+
 const createLorCheckout = async ({
   services = [],
   patient,
@@ -1005,24 +1078,7 @@ const createLorCheckout = async ({
     }
   }
 
-  const serviceItems = Array.isArray(services) ? services : [];
-  if (serviceItems.length === 0) {
-    throw new AppError("Kamida bitta xizmat tanlanishi kerak", 400);
-  }
-
-  assertUniqueIds(
-    serviceItems,
-    "serviceId",
-    "Duplicate service is not allowed in one checkout"
-  );
-
-  const normalizedServiceItems = serviceItems.map((item) => ({
-    serviceId: item.serviceId,
-    quantity: Number(item.quantity),
-    priceTier: item.priceTier
-  }));
-
-  normalizedServiceItems.forEach((item) => assertObjectId(item.serviceId, "Xizmat ID"));
+  const normalizedServiceItems = normalizeLorServiceItems(services);
   const specialist = await resolveRoleSpecialistForCheckout({
     specialistId,
     specialistName,
@@ -1041,49 +1097,11 @@ const createLorCheckout = async ({
         specialistId: specialist.specialistId,
         session
       });
-      let total = 0;
-      const checkItems = [];
-      const serviceUsageDocs = [];
-      const serviceIds = normalizedServiceItems.map((item) => item.serviceId);
-      const serviceDocs = await Service.find({
-        _id: { $in: serviceIds }
-      }).session(session);
-      const serviceMap = new Map(serviceDocs.map((service) => [service._id.toString(), service]));
-
-      for (const item of normalizedServiceItems) {
-        const quantity = item.quantity;
-        validateQuantity(quantity);
-
-        const service = serviceMap.get(String(item.serviceId));
-        if (!service) {
-          throw new AppError("Xizmat topilmadi", 404);
-        }
-
-        enforceServiceRoleRule(service, user.role);
-        enforceLorServiceOwnership(service, user);
-
-        const resolved = resolveServicePrice({
-          service,
-          priceTier: item.priceTier,
-          userRole: user.role
-        });
-
-        serviceUsageDocs.push({
-          serviceId: service._id,
-          quantity,
-          usedBy: user._id,
-          ...(resolved.priceTier ? { priceTier: resolved.priceTier } : {})
-        });
-
-        checkItems.push({
-          itemType: "service",
-          name: getServiceCheckItemName(service.name, resolved.tierLabel),
-          quantity,
-          price: resolved.price
-        });
-
-        total += quantity * resolved.price;
-      }
+      const { checkItems, serviceUsageDocs, total } = await buildLorCheckItems({
+        normalizedServiceItems,
+        user,
+        session
+      });
 
       await ServiceUsage.insertMany(serviceUsageDocs, { session });
 
@@ -1095,7 +1113,7 @@ const createLorCheckout = async ({
             idempotencyKey: safeIdempotencyKey || createAutoIdempotencyKey(),
             type: "service",
             items: checkItems,
-            total: Number(total.toFixed(2)),
+            total,
             patient: normalizedPatient,
             lorQueue: {
               ticketId: activeTicket._id,
@@ -1143,11 +1161,91 @@ const createLorCheckout = async ({
   }
 };
 
+// LOR chekini yaratilganidan keyin 12 soat ichida tuzatish (xizmat qo'shish,
+// olib tashlash, miqdorni o'zgartirish). Chek modeli o'zgarmas, shuning uchun
+// faqat shu yerda nazorat ostida yangilanadi va oldingi holati editHistory'da qoladi.
+const updateLorCheck = async ({ checkId, services, user }) => {
+  if (!user || user.role !== "lor") {
+    throw new AppError("Chekni faqat LOR tahrirlay oladi", 403);
+  }
+  assertObjectId(checkId, "Chek ID");
+  const normalizedServiceItems = normalizeLorServiceItems(services);
+
+  return runInTransaction(async (session) => {
+    const check = await Check.findById(checkId).session(session);
+    if (!check) {
+      throw new AppError("Chek topilmadi", 404);
+    }
+    if (
+      check.createdBy?.role !== "lor" ||
+      String(check.createdBy?.userId || "") !== String(user._id)
+    ) {
+      throw new AppError("Faqat o'zingiz yaratgan chekni tahrirlay olasiz", 403);
+    }
+
+    const createdAtMs = new Date(check.createdAt).getTime();
+    if (!Number.isFinite(createdAtMs) || Date.now() - createdAtMs > LOR_CHECK_EDIT_WINDOW_MS) {
+      throw new AppError("Chekni faqat yaratilganidan keyin 12 soat ichida o'zgartirish mumkin", 400);
+    }
+
+    const { checkItems, serviceUsageDocs, total } = await buildLorCheckItems({
+      normalizedServiceItems,
+      user,
+      session
+    });
+
+    const entry = await CashierEntry.findOne({ checkRef: check._id }).session(session);
+    if (entry) {
+      const paidAmount = Number(entry.paidAmount || 0);
+      if (total < paidAmount) {
+        throw new AppError(
+          `Kassada ${paidAmount} so'm to'langan. Chek summasi undan kam bo'lishi mumkin emas, kassir bilan hal qiling`,
+          400
+        );
+      }
+      entry.amount = total;
+      entry.debtAmount = Number((total - paidAmount).toFixed(2));
+      await entry.save({ session });
+    }
+
+    // Faqat yangi qo'shilgan xizmatlar uchun foydalanish yozuvi (xizmatni o'chirishdan himoya).
+    const previousServiceIds = new Set(
+      (check.items || []).map((item) => String(item.serviceId || "")).filter(Boolean)
+    );
+    const newUsageDocs = serviceUsageDocs.filter(
+      (doc) => !previousServiceIds.has(String(doc.serviceId))
+    );
+    if (newUsageDocs.length) {
+      await ServiceUsage.insertMany(newUsageDocs, { session });
+    }
+
+    const editedAt = new Date();
+    await Check.collection.updateOne(
+      { _id: check._id },
+      {
+        $set: { items: checkItems, total, editedAt },
+        $push: {
+          editHistory: {
+            editedAt,
+            editedBy: { userId: user._id, name: user.name },
+            previousItems: check.toObject().items,
+            previousTotal: check.total
+          }
+        }
+      },
+      { session }
+    );
+
+    return Check.findById(check._id).session(session);
+  });
+};
+
 module.exports = {
   useMedicine,
   useService,
   createNurseCheckout,
   createLorCheckout,
+  updateLorCheck,
   getMyChecks,
   getLorQueueTickets,
   callLorQueueTicket,
