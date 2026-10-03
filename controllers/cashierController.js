@@ -1,5 +1,35 @@
 const asyncHandler = require("../utils/asyncHandler");
 const cashierService = require("../services/cashierService");
+const cashierExpenseService = require("../services/cashierExpenseService");
+
+const getExpenses = asyncHandler(async (req, res) => {
+  const data = await cashierExpenseService.getExpenses({
+    user: req.user,
+    date: req.query.date
+  });
+
+  res.status(200).json({ success: true, data });
+});
+
+const createExpense = asyncHandler(async (req, res) => {
+  const data = await cashierExpenseService.createExpense({
+    user: req.user,
+    amount: req.body.amount,
+    reason: req.body.reason,
+    paymentMethod: req.body.paymentMethod
+  });
+
+  res.status(201).json({ success: true, data });
+});
+
+const cancelExpense = asyncHandler(async (req, res) => {
+  const data = await cashierExpenseService.cancelExpense({
+    user: req.user,
+    expenseId: req.params.id
+  });
+
+  res.status(200).json({ success: true, data });
+});
 
 const getSettings = asyncHandler(async (req, res) => {
   const data = await cashierService.getSettings({
@@ -116,6 +146,9 @@ const createSpecialist = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getExpenses,
+  createExpense,
+  cancelExpense,
   getSettings,
   updateSettings,
   issueLorQueueTicket,
