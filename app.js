@@ -47,6 +47,8 @@ const defaultOrigins = [
   "http://localhost",
   "https://localhost",
   "capacitor://localhost",
+  "https://sampi-medicine.vercel.app",
+  // Eski domen: avval o'rnatilgan desktop/TV ilovalar hali shu manzilni ochadi.
   "https://sampi-medline.vercel.app"
 ];
 const envOrigins = process.env.CLIENT_ORIGIN
