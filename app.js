@@ -47,7 +47,7 @@ const defaultOrigins = [
   "http://localhost",
   "https://localhost",
   "capacitor://localhost",
-  "https://sampi-medline.vercel.app"
+  "https://sampi-medicine.vercel.app"
 ];
 const envOrigins = process.env.CLIENT_ORIGIN
   ? process.env.CLIENT_ORIGIN.split(",").map((item) => item.trim())
