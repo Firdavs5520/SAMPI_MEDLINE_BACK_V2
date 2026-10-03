@@ -64,7 +64,8 @@ const serviceSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: true,
-      min: 0.01,
+      // LOR xizmati 0 so'm bo'lishi mumkin; hamshira narxlari pre("validate") da tekshiriladi.
+      min: 0,
       max: 999999.99
     }
   },

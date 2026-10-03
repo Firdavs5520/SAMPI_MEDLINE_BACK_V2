@@ -22,7 +22,7 @@ const checkItemSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: true,
-      min: 0.01,
+      min: 0,
       max: 999999.99,
       immutable: true
     }
@@ -61,7 +61,7 @@ const checkSchema = new mongoose.Schema(
     total: {
       type: Number,
       required: true,
-      min: 0.01,
+      min: 0,
       immutable: true
     },
     patient: {
