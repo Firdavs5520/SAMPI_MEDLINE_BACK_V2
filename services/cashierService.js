@@ -169,8 +169,8 @@ const validateAmount = (amount) => {
   return parsed;
 };
 
-const resolvePaidAndDebt = (amount, paidInput) => {
-  const safeAmount = validateAmount(amount);
+const resolvePaidAndDebt = (amount, paidInput, { allowZero = false } = {}) => {
+  const safeAmount = allowZero && Number(amount) === 0 ? 0 : validateAmount(amount);
   const paidRaw =
     paidInput === undefined || paidInput === null || paidInput === ""
       ? safeAmount
@@ -480,8 +480,11 @@ const createEntryFromCheck = async ({ payload, user }) => {
     throw new AppError("Bu chek allaqachon kassada qabul qilingan", 400);
   }
 
-  const amount = validateAmount(check.total);
-  const { paidAmount, debtAmount } = resolvePaidAndDebt(amount, payload.paidAmount);
+  // Faqat bepul LOR xizmatlaridan iborat chek 0 so'm: to'lovsiz, qarzsiz qabul qilinadi.
+  const amount = Number(check.total) === 0 ? 0 : validateAmount(check.total);
+  const { paidAmount, debtAmount } = resolvePaidAndDebt(amount, payload.paidAmount, {
+    allowZero: true
+  });
   const paymentMethod = normalizePaymentMethod(payload.paymentMethod);
   const patientName = resolvePatientNameFromCheck(check);
   const specialistName = String(check?.createdBy?.name || "").trim();

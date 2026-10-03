@@ -341,6 +341,56 @@ test("LOR: oldingi smenadan qolgan qabul yangi smenada yakunlanadi", async () =>
   assert.equal(checkout.status, 201, JSON.stringify(checkout.body));
 });
 
+test("LOR: bepul (0 so'm) xizmat, 0 so'mlik chek kassada qarzsiz qabul qilinadi", async () => {
+  const free = await ctx.call("POST", "/services", {
+    token: tokens.lor,
+    body: { name: "Qayta ko'rik", type: "lor", price: 0 }
+  });
+  assert.equal(free.status, 201, JSON.stringify(free.body));
+  assert.equal(free.data.price, 0);
+
+  const negative = await ctx.call("POST", "/services", {
+    token: tokens.lor,
+    body: { name: "Xato", type: "lor", price: -1 }
+  });
+  assert.equal(negative.status, 400);
+
+  const nurseFree = await ctx.call("POST", "/services", {
+    token: tokens.nurse,
+    body: { name: "Bepul ukol", type: "nurse", priceOptions: { first: 0, second: 0, third: 0 } }
+  });
+  assert.equal(nurseFree.status, 400);
+
+  const ticket = await ctx.call("POST", "/cashier/lor-queue-tickets", {
+    token: tokens.cashier,
+    body: { idempotencyKey: "t-free" }
+  });
+  await ctx.call("POST", `/usage/lor-queue-tickets/${ticket.data.id}/call`, {
+    token: tokens.lor,
+    body: { lorIdentity: "lor1", specialistId: fixtures.lorDoctor._id, specialistName: "Dr. Karimov" }
+  });
+  const checkout = await ctx.call("POST", "/usage/lor-checkout", {
+    token: tokens.lor,
+    body: {
+      services: [{ serviceId: free.data._id, quantity: 1 }],
+      patient: { firstName: "Bepul", lastName: "Bemor" },
+      lorIdentity: "lor1",
+      specialistId: fixtures.lorDoctor._id,
+      queueTicketId: ticket.data.id
+    }
+  });
+  assert.equal(checkout.status, 201, JSON.stringify(checkout.body));
+  assert.equal(checkout.data.check.total, 0);
+
+  const accepted = await ctx.call("POST", "/cashier/entries", {
+    token: tokens.cashier,
+    body: { checkRef: checkout.data.check._id, paidAmount: 0, paymentMethod: "cash" }
+  });
+  assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
+  assert.equal(accepted.data.amount, 0);
+  assert.equal(accepted.data.debtAmount, 0);
+});
+
 test("TV SSE: uzilgan ulanishlar tinglovchi qoldirmaydi", async () => {
   const streamToken = (await ctx.call("GET", "/tv/lor-queue/stream-token", { token: tokens.tv })).data.token;
   const url = `${ctx.base}/tv/lor-queue/stream?lorIdentity=lor1&streamToken=${streamToken}`;

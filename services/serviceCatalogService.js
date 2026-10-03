@@ -8,6 +8,13 @@ const validatePrice = (price) => {
   }
 };
 
+// LOR xizmati bepul (0 so'm) bo'lishi mumkin.
+const validateLorPrice = (price) => {
+  if (typeof price !== "number" || !Number.isFinite(price) || price < 0 || price >= 1000000) {
+    throw new AppError("Narx 0 yoki undan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
+  }
+};
+
 const parseNursePriceOptions = (priceOptions) => {
   const first = Number(priceOptions?.first);
   const second = Number(priceOptions?.second);
@@ -69,7 +76,7 @@ const createService = async ({ name, type, price, priceOptions, user }) => {
     normalizedPriceOptions = parseNursePriceOptions(priceOptions);
     normalizedPrice = normalizedPriceOptions.first;
   } else {
-    validatePrice(normalizedPrice);
+    validateLorPrice(normalizedPrice);
   }
 
   return Service.create({
@@ -163,7 +170,7 @@ const updateService = async ({ serviceId, name, price, priceOptions, user }) => 
     }
   } else if (hasPrice) {
     const normalized = Number(price);
-    validatePrice(normalized);
+    validateLorPrice(normalized);
     service.price = normalized;
   }
 

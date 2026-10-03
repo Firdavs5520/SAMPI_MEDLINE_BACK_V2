@@ -33,9 +33,10 @@ const validateQuantity = (quantity) => {
   }
 };
 
-const resolvePrice = (basePrice, label = "Item") => {
+const resolvePrice = (basePrice, label = "Item", { allowZero = false } = {}) => {
   const fallback = Number(basePrice);
-  if (!Number.isFinite(fallback) || fallback <= 0 || fallback >= 1000000) {
+  const belowMin = allowZero ? fallback < 0 : fallback <= 0;
+  if (!Number.isFinite(fallback) || belowMin || fallback >= 1000000) {
     throw new AppError(`${label} uchun saqlangan narx noto'g'ri`, 400);
   }
 
@@ -73,7 +74,7 @@ const resolveServicePrice = ({ service, priceTier, userRole }) => {
   }
 
   return {
-    price: resolvePrice(service?.price, service?.name),
+    price: resolvePrice(service?.price, service?.name, { allowZero: service?.type === "lor" }),
     priceTier: null,
     tierLabel: null
   };
