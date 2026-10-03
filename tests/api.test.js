@@ -391,6 +391,117 @@ test("LOR: bepul (0 so'm) xizmat, 0 so'mlik chek kassada qarzsiz qabul qilinadi"
   assert.equal(accepted.data.debtAmount, 0);
 });
 
+const createLorCheck = async (key, services = [{ serviceId: fixtures.lorService._id, quantity: 1 }]) => {
+  const ticket = await ctx.call("POST", "/cashier/lor-queue-tickets", {
+    token: tokens.cashier,
+    body: { idempotencyKey: key }
+  });
+  await ctx.call("POST", `/usage/lor-queue-tickets/${ticket.data.id}/call`, {
+    token: tokens.lor,
+    body: { lorIdentity: "lor1", specialistId: fixtures.lorDoctor._id, specialistName: "Dr. Karimov" }
+  });
+  const checkout = await ctx.call("POST", "/usage/lor-checkout", {
+    token: tokens.lor,
+    body: {
+      services,
+      patient: { firstName: "Tahrir", lastName: key },
+      lorIdentity: "lor1",
+      specialistId: fixtures.lorDoctor._id,
+      queueTicketId: ticket.data.id
+    }
+  });
+  assert.equal(checkout.status, 201, JSON.stringify(checkout.body));
+  return checkout.data.check;
+};
+
+test("LOR chekni 12 soat ichida tahrirlaydi, tarix saqlanadi", async () => {
+  const extra = (
+    await ctx.call("POST", "/services", { token: tokens.lor, body: { name: "Yuvish", type: "lor", price: 30000 } })
+  ).data;
+  const check = await createLorCheck("edit-1");
+  assert.equal(check.total, 100000);
+  assert.equal(String(check.items[0].serviceId), String(fixtures.lorService._id));
+
+  const edited = await ctx.call("PATCH", `/usage/lor-checks/${check._id}`, {
+    token: tokens.lor,
+    body: {
+      services: [
+        { serviceId: fixtures.lorService._id, quantity: 1 },
+        { serviceId: extra._id, quantity: 2 }
+      ]
+    }
+  });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  assert.equal(edited.data.total, 160000);
+  assert.equal(edited.data.items.length, 2);
+  assert.equal(edited.data.editHistory.length, 1);
+  assert.equal(edited.data.editHistory[0].previousTotal, 100000);
+  assert.equal(edited.data.checkId, check.checkId);
+  assert.equal(edited.data.patient.fullName, check.patient.fullName);
+
+  const nurse = await ctx.call("PATCH", `/usage/lor-checks/${check._id}`, {
+    token: tokens.nurse,
+    body: { services: [{ serviceId: fixtures.lorService._id, quantity: 1 }] }
+  });
+  assert.equal(nurse.status, 403);
+
+  const empty = await ctx.call("PATCH", `/usage/lor-checks/${check._id}`, {
+    token: tokens.lor,
+    body: { services: [] }
+  });
+  assert.equal(empty.status, 400);
+});
+
+test("LOR chek tahriri kassadagi summa va qarzni yangilaydi", async () => {
+  const check = await createLorCheck("edit-2");
+  const accepted = await ctx.call("POST", "/cashier/entries", {
+    token: tokens.cashier,
+    body: { checkRef: check._id, paidAmount: 100000, paymentMethod: "cash" }
+  });
+  assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
+
+  const more = await ctx.call("PATCH", `/usage/lor-checks/${check._id}`, {
+    token: tokens.lor,
+    body: { services: [{ serviceId: fixtures.lorService._id, quantity: 2 }] }
+  });
+  assert.equal(more.status, 200, JSON.stringify(more.body));
+
+  const CashierEntry = require("../models/CashierEntry");
+  const entry = await CashierEntry.findById(accepted.data._id).lean();
+  assert.equal(entry.amount, 200000);
+  assert.equal(entry.paidAmount, 100000);
+  assert.equal(entry.debtAmount, 100000);
+
+  // To'langan summadan kamaytirib bo'lmaydi.
+  const free = (
+    await ctx.call("POST", "/services", { token: tokens.lor, body: { name: "Maslahat", type: "lor", price: 0 } })
+  ).data;
+  const less = await ctx.call("PATCH", `/usage/lor-checks/${check._id}`, {
+    token: tokens.lor,
+    body: { services: [{ serviceId: free._id, quantity: 1 }] }
+  });
+  assert.equal(less.status, 400);
+  const unchanged = await CashierEntry.findById(accepted.data._id).lean();
+  assert.equal(unchanged.amount, 200000);
+});
+
+test("LOR chekini 12 soatdan keyin tahrirlab bo'lmaydi", async () => {
+  const Check = require("../models/Check");
+  const check = await createLorCheck("edit-3");
+  await Check.collection.updateOne(
+    { _id: new mongoose.Types.ObjectId(check._id) },
+    { $set: { createdAt: new Date(Date.now() - 13 * 3600000) } }
+  );
+  const late = await ctx.call("PATCH", `/usage/lor-checks/${check._id}`, {
+    token: tokens.lor,
+    body: { services: [{ serviceId: fixtures.lorService._id, quantity: 2 }] }
+  });
+  assert.equal(late.status, 400);
+  assert.match(late.body.message, /12 soat/);
+  const stored = await Check.findById(check._id).lean();
+  assert.equal(stored.total, 100000);
+});
+
 test("TV SSE: uzilgan ulanishlar tinglovchi qoldirmaydi", async () => {
   const streamToken = (await ctx.call("GET", "/tv/lor-queue/stream-token", { token: tokens.tv })).data.token;
   const url = `${ctx.base}/tv/lor-queue/stream?lorIdentity=lor1&streamToken=${streamToken}`;
