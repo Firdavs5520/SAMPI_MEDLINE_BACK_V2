@@ -590,6 +590,44 @@ test("kassa: kutilmagan xarajat qo'shiladi, jami hisoblanadi va bekor qilinadi",
   assert.equal(otherDay.data.expenses.length, 0);
 });
 
+test("reporter: bitta oy uchun to'liq Excel (hamma varaqlar bilan)", async () => {
+  const ExcelJS = require("exceljs");
+  const res = await fetch(`${ctx.base}/reporter/monthly/full-export`, {
+    headers: { Authorization: `Bearer ${tokens.reporter}` }
+  });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-disposition"), /sampi-oylik-\d{4}-\d{2}\.xlsx/);
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await res.arrayBuffer()));
+  assert.deepEqual(
+    workbook.worksheets.map((sheet) => sheet.name),
+    ["Umumiy", "Kunlik jadval", "Mutaxassislar", "Xizmatlar", "Dorilar", "Kassa xarajatlari", "Qarzdorlar", "Kassa yozuvlari"]
+  );
+
+  const summary = {};
+  workbook.getWorksheet("Umumiy").eachRow((row) => {
+    const label = row.getCell(1).value;
+    if (label && !(label in summary)) summary[label] = row.getCell(2).value;
+  });
+  assert.ok(summary["Jami tushum"] > 0, JSON.stringify(summary));
+  assert.equal(summary["Jami tushum"], summary["Naqd"] + summary["Karta"] + summary["O'tkazma"]);
+
+  const entries = workbook.getWorksheet("Kassa yozuvlari");
+  assert.ok(entries.rowCount >= 3, "kassa yozuvlari bo'lishi kerak");
+  assert.equal(entries.getRow(entries.rowCount).getCell(1).value, "Jami");
+  const services = [];
+  workbook.getWorksheet("Xizmatlar").eachRow((row, number) => {
+    if (number > 1) services.push(row.getCell(2).value);
+  });
+  assert.ok(services.length > 1, "xizmatlar ro'yxati bo'sh");
+
+  const forbidden = await fetch(`${ctx.base}/reporter/monthly/full-export`, {
+    headers: { Authorization: `Bearer ${tokens.cashier}` }
+  });
+  assert.equal(forbidden.status, 403);
+});
+
 test("TV SSE: uzilgan ulanishlar tinglovchi qoldirmaydi", async () => {
   const streamToken = (await ctx.call("GET", "/tv/lor-queue/stream-token", { token: tokens.tv })).data.token;
   const url = `${ctx.base}/tv/lor-queue/stream?lorIdentity=lor1&streamToken=${streamToken}`;

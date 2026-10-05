@@ -854,6 +854,10 @@ const buildMonthlyWorkbook = async ({ month }) => {
 
 module.exports = {
   AMOUNT_FIELDS,
+  AMOUNT_LABELS,
+  MONTH_LABELS,
+  getMonthRange,
+  addTemplateMonthSheet,
   getDailyReport,
   updateDailyRecord,
   getMonthlyReport,
