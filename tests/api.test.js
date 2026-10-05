@@ -414,6 +414,25 @@ const createLorCheck = async (key, services = [{ serviceId: fixtures.lorService.
   return checkout.data.check;
 };
 
+test("kassa 1 mln so'mdan katta chekni qabul qiladi", async () => {
+  const pricey = await ctx.call("POST", "/services", {
+    token: tokens.lor,
+    body: { name: "Operatsiya", type: "lor", price: 900000 }
+  });
+  assert.equal(pricey.status, 201, JSON.stringify(pricey.body));
+  const check = await createLorCheck("t-big", [{ serviceId: pricey.data._id, quantity: 2 }]);
+  assert.equal(check.total, 1800000);
+
+  const accepted = await ctx.call("POST", "/cashier/entries", {
+    token: tokens.cashier,
+    body: { checkRef: check._id, paidAmount: 1500000, paymentMethod: "card", patientPhone: "+998901112233" }
+  });
+  assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
+  assert.equal(accepted.data.amount, 1800000);
+  assert.equal(accepted.data.paidAmount, 1500000);
+  assert.equal(accepted.data.debtAmount, 300000);
+});
+
 test("LOR chekni 12 soat ichida tahrirlaydi, tarix saqlanadi", async () => {
   const extra = (
     await ctx.call("POST", "/services", { token: tokens.lor, body: { name: "Yuvish", type: "lor", price: 30000 } })

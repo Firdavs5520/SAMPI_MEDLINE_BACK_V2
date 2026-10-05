@@ -115,7 +115,7 @@ const cashierEntrySchema = new mongoose.Schema(
       required: true,
       // Faqat bepul LOR xizmatlaridan iborat chek 0 so'm bo'ladi.
       min: 0,
-      max: 999999.99
+      max: 99999999
     },
     specialistName: {
       type: String,

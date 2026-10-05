@@ -161,10 +161,13 @@ const normalizeListLimit = (value, fallback = 200, max = 500) => {
   return Math.min(max, Math.max(1, Math.floor(parsed)));
 };
 
+// Bitta xizmat narxi 1 mln dan kichik, lekin bir nechta xizmatli chek jami undan oshadi.
+const MAX_ENTRY_AMOUNT = 99999999;
+
 const validateAmount = (amount) => {
   const parsed = Number(amount);
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 1000000) {
-    throw new AppError("Summa 0 dan katta va 1,000,000 dan kichik bo'lishi kerak", 400);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > MAX_ENTRY_AMOUNT) {
+    throw new AppError("Summa 0 dan katta va 99 999 999 dan oshmasligi kerak", 400);
   }
   return parsed;
 };
