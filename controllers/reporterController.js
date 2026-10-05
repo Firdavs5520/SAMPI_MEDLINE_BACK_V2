@@ -1,4 +1,5 @@
 const asyncHandler = require("../utils/asyncHandler");
+const { buildFullMonthWorkbook } = require("../services/reporterFullExport");
 const reporterService = require("../services/reporterService");
 
 const getDailyReport = asyncHandler(async (req, res) => {
@@ -41,7 +42,20 @@ const exportMonthlyReport = asyncHandler(async (req, res) => {
   res.status(200).send(Buffer.from(buffer));
 });
 
+const exportFullMonthReport = asyncHandler(async (req, res) => {
+  const { workbook, monthKey } = await buildFullMonthWorkbook({ month: req.query.month });
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", `attachment; filename="sampi-oylik-${monthKey}.xlsx"`);
+  res.status(200).send(Buffer.from(buffer));
+});
+
 module.exports = {
+  exportFullMonthReport,
   getDailyReport,
   updateDailyRecord,
   getMonthlyReport,

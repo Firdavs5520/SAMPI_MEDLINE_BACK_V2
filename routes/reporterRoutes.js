@@ -11,5 +11,6 @@ router.get("/daily", reporterController.getDailyReport);
 router.put("/daily", reporterController.updateDailyRecord);
 router.get("/monthly", reporterController.getMonthlyReport);
 router.get("/monthly/export", reporterController.exportMonthlyReport);
+router.get("/monthly/full-export", reporterController.exportFullMonthReport);
 
 module.exports = router;
