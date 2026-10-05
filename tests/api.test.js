@@ -309,6 +309,22 @@ test("LOR: kassir raqam chiqaradi, LOR chaqiradi va chek yaratadi", async () => 
   assert.equal(checkout.data.check.lorQueue.queueCode, "01");
 });
 
+test("LOR navbat: hisoblagich yo'qolsa ham raqam takrorlanmaydi, ketma-ket davom etadi", async () => {
+  const issue = (key) =>
+    ctx.call("POST", "/cashier/lor-queue-tickets", { token: tokens.cashier, body: { idempotencyKey: key } });
+  const first = await issue("cnt-1");
+  assert.equal(first.status, 201, JSON.stringify(first.body));
+  const firstNumber = Number(first.data.queueCode);
+
+  await mongoose.connection.collection("lorqueuecounters").deleteMany({});
+  const afterReset = await issue("cnt-2");
+  assert.equal(afterReset.status, 201, JSON.stringify(afterReset.body));
+  assert.equal(Number(afterReset.data.queueCode), firstNumber + 1);
+
+  const next = await issue("cnt-3");
+  assert.equal(Number(next.data.queueCode), firstNumber + 2);
+});
+
 test("LOR: oldingi smenadan qolgan qabul yangi smenada yakunlanadi", async () => {
   const LorQueueTicket = require("../models/LorQueueTicket");
   const { shiftDateString } = require("../services/cashierSettingsService");

@@ -359,19 +359,24 @@ const syncCounterToIssuedQueue = async ({ shiftDate, lorIdentity, queueNumber })
   );
 };
 
-const reserveNextQueueNumber = async ({ shiftDate, lorIdentity }) => {
+// Odatda faqat hisoblagich +1 qilinadi (bitta so'rov). Hisoblagich chiqarilgan
+// raqamlardan orqada qolgan bo'lsa (raqam band chiqsa), resync bilan to'g'rilanadi.
+const reserveNextQueueNumber = async ({ shiftDate, lorIdentity, resync = false }) => {
   const key = buildCounterKey({ shiftDate, lorIdentity });
-  const highestQueueNumber = await getHighestQueueNumber({ shiftDate, lorIdentity });
+  let highestQueueNumber = 0;
 
-  try {
-    await syncCounterToIssuedQueue({
-      shiftDate,
-      lorIdentity,
-      queueNumber: highestQueueNumber
-    });
-  } catch (error) {
-    if (!isDuplicateKeyError(error)) {
-      throw error;
+  if (resync) {
+    highestQueueNumber = await getHighestQueueNumber({ shiftDate, lorIdentity });
+    try {
+      await syncCounterToIssuedQueue({
+        shiftDate,
+        lorIdentity,
+        queueNumber: highestQueueNumber
+      });
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) {
+        throw error;
+      }
     }
   }
 
@@ -419,7 +424,8 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const queueNumber = await reserveNextQueueNumber({
       shiftDate: safeDateString,
-      lorIdentity: normalizedLorIdentity
+      lorIdentity: normalizedLorIdentity,
+      resync: attempt > 0
     });
     const queueCode = formatQueueCode(queueNumber);
 
@@ -434,12 +440,6 @@ const issueTicket = async ({ user, lorIdentity = "lor1", idempotencyKey } = {}) 
           role: user.role,
           name: user.name
         }
-      });
-
-      await syncCounterToIssuedQueue({
-        shiftDate: safeDateString,
-        lorIdentity: normalizedLorIdentity,
-        queueNumber
       });
 
       notifyQueueChanged({

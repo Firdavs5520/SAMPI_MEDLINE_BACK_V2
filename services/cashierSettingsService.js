@@ -70,6 +70,25 @@ const getOrCreateSettingsDoc = async () => {
   }
 };
 
+// Smena vaqtlari kam o'zgaradi: navbat va kassa so'rovlarida bazaga har safar borilmasin.
+// O'zgartirilganda kesh darhol tozalanadi.
+const SETTINGS_CACHE_MS = 30 * 1000;
+let settingsCache = { at: 0, value: null };
+
+const getCachedSettings = async () => {
+  if (settingsCache.value && Date.now() - settingsCache.at < SETTINGS_CACHE_MS) {
+    return settingsCache.value;
+  }
+  const doc = await getOrCreateSettingsDoc();
+  const value = typeof doc?.toObject === "function" ? doc.toObject() : doc;
+  settingsCache = { at: Date.now(), value };
+  return value;
+};
+
+const clearSettingsCache = () => {
+  settingsCache = { at: 0, value: null };
+};
+
 const getSettings = async ({ user } = {}) => {
   if (user) {
     assertReadPermission(user);
@@ -112,6 +131,7 @@ const updateSettings = async ({ payload = {}, user }) => {
   };
 
   await current.save();
+  clearSettingsCache();
   return serializeSettings(current);
 };
 
@@ -171,7 +191,7 @@ const getShiftRangeFromSettings = ({ dateParts, dateString, settings }) => {
 };
 
 const getShiftRange = async ({ dateString, dateParts }) => {
-  const settings = await getOrCreateSettingsDoc();
+  const settings = await getCachedSettings();
   return getShiftRangeFromSettings({ dateParts, dateString, settings });
 };
 
@@ -204,7 +224,7 @@ const getCurrentShiftDateFromSettings = (settings, now = new Date()) => {
 };
 
 const getCurrentShiftDate = async (now = new Date()) => {
-  const settings = await getOrCreateSettingsDoc();
+  const settings = await getCachedSettings();
   return getCurrentShiftDateFromSettings(settings, now);
 };
 
@@ -214,5 +234,6 @@ module.exports = {
   updateSettings,
   getShiftRange,
   getCurrentShiftDate,
-  shiftDateString
+  shiftDateString,
+  clearSettingsCache
 };
