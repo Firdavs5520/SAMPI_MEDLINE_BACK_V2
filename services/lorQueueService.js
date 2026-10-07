@@ -173,7 +173,8 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
     minutesSinceCalled: getMinutesSince(calledAt, now),
     checkRef: row.checkRef ? String(row.checkRef) : "",
     checkCode: row.checkCode || "",
-    walkIn: Boolean(row.walkIn)
+    walkIn: Boolean(row.walkIn),
+    arrived: Boolean(row.arrivedAt)
   };
 
   if (!includePrivate) {
@@ -183,7 +184,8 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
       calledAt: base.calledAt,
       createdAt: base.createdAt,
       minutesSinceCalled: base.minutesSinceCalled,
-      walkIn: base.walkIn
+      walkIn: base.walkIn,
+      arrived: base.arrived
     };
   }
 
@@ -605,6 +607,7 @@ const callTicket = async ({
             name: user.name
           },
           calledAt: new Date(),
+          arrivedAt: null,
           cancelledAt: null,
           completedAt: null
         }
@@ -672,6 +675,7 @@ const admitWalkIn = async ({ user, lorIdentity = "lor1", specialistId, specialis
         createdBy: actor,
         calledBy: actor,
         calledAt: now,
+        arrivedAt: now,
         doctor: {
           ...(specialistId ? { specialistId } : {}),
           name: doctorName
@@ -696,6 +700,56 @@ const admitWalkIn = async ({ user, lorIdentity = "lor1", specialistId, specialis
   }
 
   throw new AppError("LOR navbat raqamini yaratib bo'lmadi", 500);
+};
+
+const findCurrentTicket = async ({ ticketId, lorIdentity }) => {
+  assertObjectId(ticketId, "Navbat ID");
+  const ticket = await LorQueueTicket.findOne({
+    _id: ticketId,
+    lorIdentity: normalizeLorIdentity(lorIdentity),
+    status: "in_progress"
+  });
+  if (!ticket) {
+    throw new AppError("Qabuldagi LOR navbat raqami topilmadi", 404);
+  }
+  return ticket;
+};
+
+// Bemor xonaga kirdi (shifokor ismini yozib xizmatlar oynasini ochdi): TV "Hozir qabulda".
+const markTicketArrived = async ({ user, ticketId, lorIdentity = "lor1" } = {}) => {
+  assertLorUser(user);
+  const ticket = await findCurrentTicket({ ticketId, lorIdentity });
+  if (ticket.arrivedAt) return serializeTicket(ticket);
+
+  ticket.arrivedAt = new Date();
+  await ticket.save();
+  notifyQueueChanged({
+    shiftDate: ticket.shiftDate,
+    lorIdentity: ticket.lorIdentity,
+    action: "arrived",
+    ticket
+  });
+  return serializeTicket(ticket);
+};
+
+// Bemor kelmadi, eshitmagan bo'lishi mumkin: TV raqamni yana ko'rsatib, ovoz bilan qayta aytadi
+// (calledAt yangilanadi, demak TV e'lon kaliti ham yangi bo'ladi).
+const recallTicket = async ({ user, ticketId, lorIdentity = "lor1" } = {}) => {
+  assertLorUser(user);
+  const ticket = await findCurrentTicket({ ticketId, lorIdentity });
+  if (ticket.arrivedAt) {
+    throw new AppError("Bemor allaqachon qabulda", 400);
+  }
+
+  ticket.calledAt = new Date();
+  await ticket.save();
+  notifyQueueChanged({
+    shiftDate: ticket.shiftDate,
+    lorIdentity: ticket.lorIdentity,
+    action: "called",
+    ticket
+  });
+  return serializeTicket(ticket);
 };
 
 const cancelTicket = async ({
@@ -870,6 +924,8 @@ const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1", limit = 16 } 
 module.exports = {
   issueTicket,
   admitWalkIn,
+  markTicketArrived,
+  recallTicket,
   getIssueStatus,
   getLorTickets,
   callTicket,

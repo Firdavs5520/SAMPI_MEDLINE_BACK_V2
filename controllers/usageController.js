@@ -171,6 +171,24 @@ const admitLorWalkIn = asyncHandler(async (req, res) => {
   });
 });
 
+const markLorTicketArrived = asyncHandler(async (req, res) => {
+  const data = await usageService.markLorTicketArrived({
+    user: req.user,
+    ticketId: req.params.id,
+    lorIdentity: req.body.lorIdentity
+  });
+  res.status(200).json({ success: true, data });
+});
+
+const recallLorQueueTicket = asyncHandler(async (req, res) => {
+  const data = await usageService.recallLorQueueTicket({
+    user: req.user,
+    ticketId: req.params.id,
+    lorIdentity: req.body.lorIdentity
+  });
+  res.status(200).json({ success: true, data });
+});
+
 const cancelLorQueueTicket = asyncHandler(async (req, res) => {
   const data = await usageService.cancelLorQueueTicket({
     user: req.user,
@@ -245,6 +263,8 @@ module.exports = {
   getLorQueueTickets,
   callLorQueueTicket,
   admitLorWalkIn,
+  markLorTicketArrived,
+  recallLorQueueTicket,
   cancelLorQueueTicket,
   getRoleSpecialists,
   createRoleSpecialist,

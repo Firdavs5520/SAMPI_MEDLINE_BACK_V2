@@ -15,6 +15,8 @@ router.patch("/lor-checks/:id", allowRoles("lor"), usageController.updateLorChec
 router.get("/my-checks", allowRoles("lor", "nurse"), usageController.getMyChecks);
 router.get("/lor-queue-tickets", allowRoles("lor"), usageController.getLorQueueTickets);
 router.post("/lor-queue-tickets/walk-in", allowRoles("lor"), usageController.admitLorWalkIn);
+router.post("/lor-queue-tickets/:id/arrived", allowRoles("lor"), usageController.markLorTicketArrived);
+router.post("/lor-queue-tickets/:id/recall", allowRoles("lor"), usageController.recallLorQueueTicket);
 router.post(
   "/lor-queue-tickets/:id/call",
   allowRoles("lor"),

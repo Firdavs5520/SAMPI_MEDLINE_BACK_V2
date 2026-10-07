@@ -414,6 +414,58 @@ test("LOR: qayta kelgan bemorni shifokor kassasiz qabul qiladi (TV chaqirmaydi)"
   assert.equal(checkout.data.check.lorQueue.queueCode, admitted.data.queueCode);
 });
 
+test("LOR: chaqirilgan, lekin kelmagan bemor TV'da qabulda ko'rinmaydi", async () => {
+  const doctor = { lorIdentity: "lor1", specialistId: fixtures.lorDoctor._id, specialistName: "Dr. Karimov" };
+  const tvState = async () => (await ctx.call("GET", "/tv/lor-queue?lorIdentity=lor1", { token: tokens.tv })).data;
+
+  const issue = async (key) =>
+    (await ctx.call("POST", "/cashier/lor-queue-tickets", { token: tokens.cashier, body: { idempotencyKey: key } })).data;
+
+  // 1) Chaqirildi: TV'da "chaqirilmoqda" (arrived=false), ovozli e'lon bor.
+  const first = await issue("arrive-1");
+  const called = await ctx.call("POST", `/usage/lor-queue-tickets/${first.id}/call`, { token: tokens.lor, body: doctor });
+  assert.equal(called.status, 200, JSON.stringify(called.body));
+  assert.equal(called.data.arrived, false);
+  const tv1 = await tvState();
+  assert.equal(tv1.current.queueCode, first.queueCode);
+  assert.equal(tv1.current.arrived, false);
+  assert.ok(tv1.announcementKey);
+
+  // 2) Qayta chaqirish: e'lon kaliti yangilanadi (TV yana aytadi).
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const recalled = await ctx.call("POST", `/usage/lor-queue-tickets/${first.id}/recall`, { token: tokens.lor, body: doctor });
+  assert.equal(recalled.status, 200, JSON.stringify(recalled.body));
+  const tv2 = await tvState();
+  assert.notEqual(tv2.announcementKey, tv1.announcementKey);
+
+  // 3) Kelmadi: bekor qilinadi, TV'da qabuldagi raqam qolmaydi.
+  const absent = await ctx.call("POST", `/usage/lor-queue-tickets/${first.id}/cancel`, {
+    token: tokens.lor,
+    body: { lorIdentity: "lor1", reason: "patient_absent" }
+  });
+  assert.equal(absent.status, 200, JSON.stringify(absent.body));
+  assert.equal((await tvState()).current, null);
+
+  // 4) Keyingi bemor keldi: TV "Hozir qabulda", e'lon kaliti o'zgarmaydi (qayta aytilmaydi).
+  const second = await issue("arrive-2");
+  await ctx.call("POST", `/usage/lor-queue-tickets/${second.id}/call`, { token: tokens.lor, body: doctor });
+  const before = await tvState();
+  const arrived = await ctx.call("POST", `/usage/lor-queue-tickets/${second.id}/arrived`, { token: tokens.lor, body: doctor });
+  assert.equal(arrived.status, 200, JSON.stringify(arrived.body));
+  assert.equal(arrived.data.arrived, true);
+  const after = await tvState();
+  assert.equal(after.current.arrived, true);
+  assert.equal(after.announcementKey, before.announcementKey);
+  assert.equal(
+    (await ctx.call("POST", `/usage/lor-queue-tickets/${second.id}/recall`, { token: tokens.lor, body: doctor })).status,
+    400
+  );
+  await ctx.call("POST", `/usage/lor-queue-tickets/${second.id}/cancel`, {
+    token: tokens.lor,
+    body: { lorIdentity: "lor1", reason: "other" }
+  });
+});
+
 test("LOR navbat: hisoblagich yo'qolsa ham raqam takrorlanmaydi, ketma-ket davom etadi", async () => {
   const issue = (key) =>
     ctx.call("POST", "/cashier/lor-queue-tickets", { token: tokens.cashier, body: { idempotencyKey: key } });

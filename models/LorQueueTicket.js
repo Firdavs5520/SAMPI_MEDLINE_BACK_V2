@@ -25,6 +25,12 @@ const lorQueueTicketSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
+    // Bemor xonaga kirgan vaqt. Chaqirilgan, lekin hali kelmagan raqam TV'da
+    // "Hozir qabulda" emas, "Chaqirilmoqda" bo'lib turadi.
+    arrivedAt: {
+      type: Date,
+      default: null
+    },
     status: {
       type: String,
       enum: ["waiting", "in_progress", "completed", "cancelled"],
