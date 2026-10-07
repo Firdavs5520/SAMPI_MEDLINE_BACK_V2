@@ -15,6 +15,7 @@ router.get(
   cashierController.getLorQueueTicketStatus
 );
 router.post("/lor-queue-tickets", allowRoles("cashier"), cashierController.issueLorQueueTicket);
+router.get("/accountant-report", cashierController.getAccountantReport);
 router.get("/expenses", cashierController.getExpenses);
 router.post("/expenses", allowRoles("cashier"), cashierController.createExpense);
 router.post("/expenses/:id/cancel", allowRoles("cashier"), cashierController.cancelExpense);

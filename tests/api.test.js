@@ -590,6 +590,64 @@ test("kassa: kutilmagan xarajat qo'shiladi, jami hisoblanadi va bekor qilinadi",
   assert.equal(otherDay.data.expenses.length, 0);
 });
 
+test("kassa: hisobchi hisoboti doktor ulushi, protsedura, qarz va xarajatni hisoblaydi", async () => {
+  const CashierEntry = require("../models/CashierEntry");
+  const User = require("../models/User");
+  const cashier = await User.findOne({ role: "cashier" }).lean();
+  await CashierEntry.create({
+    department: "lor",
+    specialistType: "lor",
+    specialistName: "Dr. Hisob",
+    patientName: "Hisob Bemor",
+    amount: 100000,
+    paidAmount: 60000,
+    debtAmount: 40000,
+    paymentMethod: "cash",
+    patientPhone: "+998901112233",
+    // 2026-01-15 12:00 (Toshkent) — smena ichida, test soatiga bog'liq emas.
+    entryDate: new Date("2026-01-15T07:00:00Z"),
+    createdBy: { userId: cashier._id, role: "cashier", name: cashier.name }
+  });
+
+  const res = await ctx.call("GET", "/cashier/accountant-report?date=2026-01-15", { token: tokens.cashier });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const report = res.data;
+  assert.equal(report.doctorSharePercent, 50);
+  const doctor = report.doctors.find((row) => row.name === "Dr. Hisob");
+  assert.deepEqual(
+    [doctor.patients, doctor.billed, doctor.collected, doctor.doctorShare, doctor.clinicShare, doctor.debtLeft],
+    [1, 100000, 60000, 30000, 30000, 40000]
+  );
+  assert.equal(report.lor.doctorShare, 30000);
+  assert.equal(report.debts.newDebt, 40000);
+  assert.ok(report.debts.outstandingTotal >= 40000);
+  assert.equal(report.summary.cashInHand, 60000);
+
+  // Joriy smena: bekor qilingan xarajat hisobga kirmaydi.
+  const current = (await ctx.call("GET", "/cashier/accountant-report", { token: tokens.cashier })).data;
+  assert.equal(current.expenses.total, 25000);
+  assert.equal(current.expenses.cash, 25000);
+  assert.equal(current.summary.clinicNet, current.lor.clinicShare + current.procedures.collected - 25000);
+
+  const methodsTotal = Object.values(report.byPaymentMethod).reduce((acc, value) => acc + value, 0);
+  assert.equal(report.summary.totalCollected, methodsTotal);
+  assert.equal(
+    report.summary.clinicNet,
+    report.lor.clinicShare + report.procedures.collected - report.expenses.total
+  );
+  assert.equal(report.summary.cashInHand, report.byPaymentMethod.cash - report.expenses.cash);
+
+  const manager = await ctx.call("GET", "/cashier/accountant-report?date=2020-01-01", { token: tokens.manager });
+  assert.equal(manager.status, 200);
+  assert.equal(manager.data.doctors.length, 0);
+  assert.equal(manager.data.summary.totalCollected, 0);
+  assert.equal((await ctx.call("GET", "/cashier/accountant-report", { token: tokens.lor })).status, 403);
+  assert.equal(
+    (await ctx.call("GET", "/cashier/accountant-report?date=bad", { token: tokens.cashier })).status,
+    400
+  );
+});
+
 test("reporter: bitta oy uchun to'liq Excel (hamma varaqlar bilan)", async () => {
   const ExcelJS = require("exceljs");
   const res = await fetch(`${ctx.base}/reporter/monthly/full-export`, {

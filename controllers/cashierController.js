@@ -1,6 +1,12 @@
 const asyncHandler = require("../utils/asyncHandler");
 const cashierService = require("../services/cashierService");
 const cashierExpenseService = require("../services/cashierExpenseService");
+const accountantReportService = require("../services/accountantReportService");
+
+const getAccountantReport = asyncHandler(async (req, res) => {
+  const data = await accountantReportService.getAccountantReport({ date: req.query.date });
+  res.status(200).json({ success: true, data });
+});
 
 const getExpenses = asyncHandler(async (req, res) => {
   const data = await cashierExpenseService.getExpenses({
@@ -146,6 +152,7 @@ const createSpecialist = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAccountantReport,
   getExpenses,
   createExpense,
   cancelExpense,

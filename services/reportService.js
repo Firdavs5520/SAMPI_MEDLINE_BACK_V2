@@ -730,6 +730,7 @@ const resetAllOperationalData = async ({ confirm }) => {
 };
 
 module.exports = {
+  effectiveCashierRoleExpression,
   getAllChecks,
   getTotalRevenue,
   getManagerOverview,
