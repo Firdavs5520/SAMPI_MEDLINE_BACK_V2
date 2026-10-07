@@ -306,7 +306,9 @@ const getLatestQueueTickets = async ({ shiftDate, lorIdentity, limit = 5 }) => {
     {
       $match: {
         shiftDate,
-        lorIdentity
+        lorIdentity,
+        // Shifokor o'zi ochgan raqam (bemor xonada) kassadagi qayta chiqarish ro'yxatiga kirmaydi.
+        walkIn: { $ne: true }
       }
     },
     {
