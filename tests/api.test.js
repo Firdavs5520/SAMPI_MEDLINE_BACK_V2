@@ -609,6 +609,17 @@ test("kassa: hisobchi hisoboti doktor ulushi, protsedura, qarz va xarajatni hiso
     createdBy: { userId: cashier._id, role: "cashier", name: cashier.name }
   });
 
+  const empty = await ctx.call("GET", "/cashier/accountant-report?date=2026-01-15", { token: tokens.cashier });
+  assert.equal(empty.data.utilities.entered, false);
+  assert.equal(empty.data.utilities.total, 0);
+
+  // Svet/gaz/suvni hisobotchi kiritadi, hisobchi sahifasida ko'rinadi va sof summadan ayriladi.
+  const utilities = await ctx.call("PUT", "/reporter/daily", {
+    token: tokens.reporter,
+    body: { date: "2026-01-15", electricityAmount: 12000, gasAmount: 8000, waterAmount: 5000 }
+  });
+  assert.equal(utilities.status, 200, JSON.stringify(utilities.body));
+
   const res = await ctx.call("GET", "/cashier/accountant-report?date=2026-01-15", { token: tokens.cashier });
   assert.equal(res.status, 200, JSON.stringify(res.body));
   const report = res.data;
@@ -622,18 +633,31 @@ test("kassa: hisobchi hisoboti doktor ulushi, protsedura, qarz va xarajatni hiso
   assert.equal(report.debts.newDebt, 40000);
   assert.ok(report.debts.outstandingTotal >= 40000);
   assert.equal(report.summary.cashInHand, 60000);
+  assert.equal(report.utilities.entered, true);
+  assert.deepEqual(
+    report.utilities.items.map((item) => [item.label, item.amount]),
+    [["Svet", 12000], ["Gaz", 8000], ["Suv", 5000]]
+  );
+  assert.equal(report.summary.utilities, 25000);
+  assert.equal(
+    report.summary.clinicNet,
+    report.lor.clinicShare + report.procedures.collected - report.expenses.total - 25000
+  );
 
   // Joriy smena: bekor qilingan xarajat hisobga kirmaydi.
   const current = (await ctx.call("GET", "/cashier/accountant-report", { token: tokens.cashier })).data;
   assert.equal(current.expenses.total, 25000);
   assert.equal(current.expenses.cash, 25000);
-  assert.equal(current.summary.clinicNet, current.lor.clinicShare + current.procedures.collected - 25000);
+  assert.equal(
+    current.summary.clinicNet,
+    current.lor.clinicShare + current.procedures.collected - 25000 - current.summary.utilities
+  );
 
   const methodsTotal = Object.values(report.byPaymentMethod).reduce((acc, value) => acc + value, 0);
   assert.equal(report.summary.totalCollected, methodsTotal);
   assert.equal(
     report.summary.clinicNet,
-    report.lor.clinicShare + report.procedures.collected - report.expenses.total
+    report.lor.clinicShare + report.procedures.collected - report.expenses.total - report.summary.utilities
   );
   assert.equal(report.summary.cashInHand, report.byPaymentMethod.cash - report.expenses.cash);
 

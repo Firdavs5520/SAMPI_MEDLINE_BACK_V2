@@ -18,7 +18,10 @@ const AMOUNT_FIELDS = [
   "terminalAmount",
   "transferAmount",
   "clickAmount",
-  "debtAmount"
+  "debtAmount",
+  "electricityAmount",
+  "gasAmount",
+  "waterAmount"
 ];
 
 const AMOUNT_LABELS = {
@@ -33,7 +36,10 @@ const AMOUNT_LABELS = {
   terminalAmount: "Terminal",
   transferAmount: "Perechisleniya",
   clickAmount: "Click",
-  debtAmount: "Qarz"
+  debtAmount: "Qarz",
+  electricityAmount: "Svet",
+  gasAmount: "Gaz",
+  waterAmount: "Suv"
 };
 
 const MONTH_LABELS = [
@@ -71,7 +77,10 @@ const EXCEL_TEMPLATE_COLUMNS = [
   { header: "O'tkazilgan", key: "transferAmount", width: 16 },
   { header: "Qarz", key: "debtAmount", width: 12 },
   { header: "Jami harajat", key: "expenseTotal", width: 15 },
-  { header: "Click", key: "clickAmount", width: 13 }
+  { header: "Click", key: "clickAmount", width: 13 },
+  { header: "Svet", key: "electricityAmount", width: 12 },
+  { header: "Gaz", key: "gasAmount", width: 12 },
+  { header: "Suv", key: "waterAmount", width: 12 }
 ];
 
 const emptyCashierStats = () => ({
@@ -626,7 +635,7 @@ const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
   };
 
   sheet.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
-  sheet.autoFilter = "A1:T1";
+  sheet.autoFilter = "A1:W1";
   sheet.properties.defaultRowHeight = 18;
 
   const headerRow = sheet.getRow(1);
@@ -675,7 +684,7 @@ const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
 
   sheet.getColumn(1).numFmt = "dd\\.mm\\.yy;@";
   sheet.getColumn(1).alignment = { horizontal: "center", vertical: "middle" };
-  setNumberFormat(sheet, Array.from({ length: 19 }, (_, index) => index + 2));
+  setNumberFormat(sheet, Array.from({ length: EXCEL_TEMPLATE_COLUMNS.length - 1 }, (_, index) => index + 2));
 };
 
 const addTemplateMonthSheet = (workbook, report, monthNumber) => {
@@ -703,7 +712,10 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
       row.manual.childrenAmount,
       row.manual.homeAmount,
       row.manual.bossAmount,
-      row.manual.debtAmount
+      row.manual.debtAmount,
+      row.manual.electricityAmount,
+      row.manual.gasAmount,
+      row.manual.waterAmount
     );
 
     sheet.addRow({
@@ -732,10 +744,13 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
       transferAmount: blankIfZero(row.manual.transferAmount),
       debtAmount: blankIfZero(row.manual.debtAmount),
       expenseTotal: {
-        formula: `IF(COUNTA(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber})=0,"",SUM(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber}))`,
+        formula: `IF(COUNTA(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber},U${excelRowNumber}:W${excelRowNumber})=0,"",SUM(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber},U${excelRowNumber}:W${excelRowNumber}))`,
         result: blankIfZero(expenseTotal)
       },
-      clickAmount: blankIfZero(row.manual.clickAmount)
+      clickAmount: blankIfZero(row.manual.clickAmount),
+      electricityAmount: blankIfZero(row.manual.electricityAmount),
+      gasAmount: blankIfZero(row.manual.gasAmount),
+      waterAmount: blankIfZero(row.manual.waterAmount)
     });
   });
 
@@ -749,7 +764,10 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
     report.totals.childrenAmount,
     report.totals.homeAmount,
     report.totals.bossAmount,
-    report.totals.debtAmount
+    report.totals.debtAmount,
+    report.totals.electricityAmount,
+    report.totals.gasAmount,
+    report.totals.waterAmount
   );
   const totalRowValues = {
     date: "Jami",
@@ -828,6 +846,18 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
     clickAmount: {
       formula: `SUM(T2:T${totalRowNumber - 1})`,
       result: blankIfZero(report.totals.clickAmount)
+    },
+    electricityAmount: {
+      formula: `SUM(U2:U${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.electricityAmount)
+    },
+    gasAmount: {
+      formula: `SUM(V2:V${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.gasAmount)
+    },
+    waterAmount: {
+      formula: `SUM(W2:W${totalRowNumber - 1})`,
+      result: blankIfZero(report.totals.waterAmount)
     }
   };
   sheet.addRow(totalRowValues);

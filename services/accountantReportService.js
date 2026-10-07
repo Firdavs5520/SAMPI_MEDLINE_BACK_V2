@@ -1,5 +1,6 @@
 const CashierEntry = require("../models/CashierEntry");
 const CashierExpense = require("../models/CashierExpense");
+const ReporterDailyRecord = require("../models/ReporterDailyRecord");
 const AppError = require("../utils/AppError");
 const cashierSettingsService = require("./cashierSettingsService");
 const { buildCollectionStages } = require("./cashierCollections");
@@ -10,6 +11,12 @@ const { effectiveCashierRoleExpression } = require("./reportService");
 const DOCTOR_SHARE_PERCENT = 50;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const PAYMENT_METHODS = ["cash", "card", "transfer"];
+// Svet, gaz, suv: hisobotchi o'z kunlik hisobotida kiritadi.
+const UTILITY_FIELDS = [
+  ["electricity", "electricityAmount", "Svet"],
+  ["gas", "gasAmount", "Gaz"],
+  ["water", "waterAmount", "Suv"]
+];
 
 const money = (value) => Math.round(Number(value || 0) * 100) / 100;
 const doctorShareOf = (amount) => money((Number(amount || 0) * DOCTOR_SHARE_PERCENT) / 100);
@@ -39,7 +46,7 @@ const getAccountantReport = async ({ date } = {}) => {
     dateParts: toDateParts(safeDate)
   });
 
-  const [entryGroups, [collected], [outstanding], expenses] = await Promise.all([
+  const [entryGroups, [collected], [outstanding], expenses, reporterRecord] = await Promise.all([
     // Smenada qabul qilingan bemorlar: soni, chek summasi, hali to'lanmagan qarz.
     CashierEntry.aggregate([
       { $match: { entryDate: { $gte: start, $lte: end } } },
@@ -83,6 +90,9 @@ const getAccountantReport = async ({ date } = {}) => {
     CashierExpense.find({ shiftDate: safeDate, canceledAt: null })
       .sort({ createdAt: 1 })
       .select("amount reason paymentMethod createdAt createdBy.name")
+      .lean(),
+    ReporterDailyRecord.findOne({ dateKey: safeDate })
+      .select(`${UTILITY_FIELDS.map(([, field]) => field).join(" ")} updatedBy.name createdBy.name`)
       .lean()
   ]);
 
@@ -162,6 +172,19 @@ const getAccountantReport = async ({ date } = {}) => {
     "amount"
   );
 
+  const utilityItems = UTILITY_FIELDS.map(([key, field, label]) => ({
+    key,
+    label,
+    amount: money(reporterRecord?.[field])
+  }));
+  const utilities = {
+    // Hisobotchi bu kun uchun hali hech narsa kiritmagan bo'lsa false.
+    entered: Boolean(reporterRecord),
+    enteredBy: reporterRecord?.updatedBy?.name || reporterRecord?.createdBy?.name || "",
+    items: utilityItems,
+    total: sumBy(utilityItems, "amount")
+  };
+
   const totalCollected = money(lor.collected + procedures.collected);
 
   return {
@@ -185,13 +208,15 @@ const getAccountantReport = async ({ date } = {}) => {
       total: expenseTotal,
       cash: cashExpenseTotal
     },
+    utilities,
     summary: {
       totalCollected,
       doctorsShare: lor.doctorShare,
       clinicIncome: money(lor.clinicShare + procedures.collected),
       expenses: expenseTotal,
-      // Doktorlar ulushi va xarajatlardan keyin klinikaga qoladigan sof summa.
-      clinicNet: money(lor.clinicShare + procedures.collected - expenseTotal),
+      utilities: utilities.total,
+      // Doktorlar ulushi, kassa xarajatlari va svet/gaz/suvdan keyin klinikaga qoladigan sof summa.
+      clinicNet: money(lor.clinicShare + procedures.collected - expenseTotal - utilities.total),
       // Kassadagi naqd: naqd tushum - naqd xarajat (doktor ulushi berilishidan oldin).
       cashInHand: money(byPaymentMethod.cash - cashExpenseTotal)
     }

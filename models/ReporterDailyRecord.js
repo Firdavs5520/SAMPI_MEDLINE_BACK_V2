@@ -50,6 +50,10 @@ const reporterDailyRecordSchema = new mongoose.Schema(
     transferAmount: amountField,
     clickAmount: amountField,
     debtAmount: amountField,
+    // Kommunal xarajatlar: hisobotchi kiritadi, kassadagi hisobchi sahifasida ham ko'rinadi.
+    electricityAmount: amountField,
+    gasAmount: amountField,
+    waterAmount: amountField,
     note: {
       type: String,
       trim: true,
