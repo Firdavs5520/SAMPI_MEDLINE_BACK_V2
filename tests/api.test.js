@@ -466,6 +466,18 @@ test("LOR: chaqirilgan, lekin kelmagan bemor TV'da qabulda ko'rinmaydi", async (
   });
 });
 
+test("LOR doktorni pro deb belgilash nomini o'zgartirmaydi", async () => {
+  const id = fixtures.lorDoctor._id;
+  const marked = await ctx.call("PATCH", `/usage/specialists/${id}`, { token: tokens.lor, body: { pro: true } });
+  assert.equal(marked.status, 200, JSON.stringify(marked.body));
+  assert.equal(marked.data.pro, true);
+  assert.equal(marked.data.name, "Dr. Karimov");
+  const list = await ctx.call("GET", "/usage/specialists", { token: tokens.lor });
+  assert.equal(list.data.find((item) => item._id === id).pro, true);
+  const unmarked = await ctx.call("PATCH", `/usage/specialists/${id}`, { token: tokens.lor, body: { pro: false } });
+  assert.equal(unmarked.data.pro, false);
+});
+
 test("LOR navbat: hisoblagich yo'qolsa ham raqam takrorlanmaydi, ketma-ket davom etadi", async () => {
   const issue = (key) =>
     ctx.call("POST", "/cashier/lor-queue-tickets", { token: tokens.cashier, body: { idempotencyKey: key } });

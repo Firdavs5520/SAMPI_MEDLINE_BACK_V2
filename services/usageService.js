@@ -716,14 +716,19 @@ const getRoleSpecialistById = async ({ specialistId, user }) => {
   return specialist;
 };
 
-const updateRoleSpecialist = async ({ specialistId, name, user }) => {
+const updateRoleSpecialist = async ({ specialistId, name, pro, user }) => {
   const specialist = await getRoleSpecialistById({ specialistId, user });
-  const safeName = normalizeSpecialistName(
-    name,
-    specialist.type === "nurse" ? "Hamshira" : "Doktor"
-  );
 
-  specialist.name = safeName;
+  // Faqat "pro" belgisi o'zgartirilsa nom yuborilmaydi.
+  if (name !== undefined) {
+    specialist.name = normalizeSpecialistName(
+      name,
+      specialist.type === "nurse" ? "Hamshira" : "Doktor"
+    );
+  }
+  if (pro !== undefined) {
+    specialist.pro = pro === true || pro === "true";
+  }
 
   try {
     await specialist.save();

@@ -232,6 +232,7 @@ const updateRoleSpecialist = asyncHandler(async (req, res) => {
   const data = await usageService.updateRoleSpecialist({
     specialistId: req.params.id,
     name: req.body.name,
+    pro: req.body.pro,
     user: req.user
   });
 

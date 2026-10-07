@@ -13,6 +13,11 @@ const cashierSpecialistSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    // Tajribali (pro) doktor: LOR doktor tanlash sahifasida o'rtada, alohida ko'rinadi.
+    pro: {
+      type: Boolean,
+      default: false
+    },
     createdBy: {
       userId: {
         type: mongoose.Schema.Types.ObjectId,
