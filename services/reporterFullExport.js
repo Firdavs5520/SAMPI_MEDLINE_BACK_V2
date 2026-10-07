@@ -4,7 +4,6 @@ const CashierExpense = require("../models/CashierExpense");
 const Check = require("../models/Check");
 const { buildCollectionStages } = require("./cashierCollections");
 const {
-  AMOUNT_FIELDS,
   AMOUNT_LABELS,
   MONTH_LABELS,
   getMonthRange,
@@ -18,6 +17,24 @@ const {
 const PAYMENT_LABELS = { cash: "Naqd", card: "Karta", transfer: "O'tkazma" };
 const DEPARTMENT_LABELS = { lor: "LOR", nurse: "Hamshira", procedure: "Hamshira" };
 const MONEY_FORMAT = "#,##0";
+// Hisobotchi summalari xulosada shu tartibda: avval xarajat qismlari, keyin Hamma harajat.
+const MANUAL_SUMMARY_ORDER = [
+  "medicineAmount",
+  "electricityAmount",
+  "gasAmount",
+  "waterAmount",
+  "supplyAmount",
+  "stationeryAmount",
+  "communicationAmount",
+  "childrenAmount",
+  "homeAmount",
+  "debtAmount",
+  "expenseAmount",
+  "bossAmount",
+  "terminalAmount",
+  "transferAmount",
+  "clickAmount"
+];
 const HEADER_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
 const SECTION_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD9E2F3" } };
 const TOTAL_FILL = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB4C6E7" } };
@@ -108,9 +125,8 @@ const buildSummaryRows = ({ monthLabel, report, entries, expenses, collections, 
   const entryAmount = entries.reduce((sum, entry) => sum + money(entry.amount), 0);
   const entryPaid = entries.reduce((sum, entry) => sum + money(entry.paidAmount), 0);
   const entryDebt = entries.reduce((sum, entry) => sum + money(entry.debtAmount), 0);
-  const manualExpenseTotal = AMOUNT_FIELDS.filter(
-    (field) => !["terminalAmount", "transferAmount", "clickAmount"].includes(field)
-  ).reduce((sum, field) => sum + money(totals[field]), 0);
+  // Hamma harajat (dori, ta'minot, kanstovar, aloqa, farzandlarga, uy uchun, qarz) + boshliq summasi.
+  const manualExpenseTotal = money(totals.expenseAmount) + money(totals.bossAmount);
 
   return [
     { section: `${monthLabel} — umumiy hisobot` },
@@ -138,8 +154,13 @@ const buildSummaryRows = ({ monthLabel, report, entries, expenses, collections, 
     { label: "O'tkazma", value: expenseByMethod.transfer || 0, money: true },
     { label: "Jami kassa xarajatlari", value: expenseTotal, money: true, bold: true },
     { section: "Hisobotchi kiritgan summalar" },
-    ...AMOUNT_FIELDS.map((field) => ({ label: AMOUNT_LABELS[field], value: money(totals[field]), money: true })),
-    { label: "Hisobotchi xarajatlari jami", value: manualExpenseTotal, money: true, bold: true },
+    ...MANUAL_SUMMARY_ORDER.map((field) => ({
+      label: AMOUNT_LABELS[field],
+      value: money(totals[field]),
+      money: true,
+      bold: field === "expenseAmount"
+    })),
+    { label: "Hisobotchi xarajatlari jami (hamma harajat + boshliq)", value: manualExpenseTotal, money: true, bold: true },
     { section: "Yakun" },
     { label: "Jami tushum", value: collectedTotal, money: true },
     { label: "Jami xarajat (kassa + hisobotchi)", value: expenseTotal + manualExpenseTotal, money: true },

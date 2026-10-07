@@ -92,7 +92,7 @@ const getAccountantReport = async ({ date } = {}) => {
       .select("amount reason paymentMethod createdAt createdBy.name")
       .lean(),
     ReporterDailyRecord.findOne({ dateKey: safeDate })
-      .select(`${UTILITY_FIELDS.map(([, field]) => field).join(" ")} updatedBy.name createdBy.name`)
+      .select(`${UTILITY_FIELDS.map(([, field]) => field).join(" ")} supplyAmount updatedBy.name createdBy.name`)
       .lean()
   ]);
 
@@ -182,7 +182,8 @@ const getAccountantReport = async ({ date } = {}) => {
     entered: Boolean(reporterRecord),
     enteredBy: reporterRecord?.updatedBy?.name || reporterRecord?.createdBy?.name || "",
     items: utilityItems,
-    total: sumBy(utilityItems, "amount")
+    // Eski yozuvlarda Ta'minot svet/gaz/suvga bo'linmagan: unda saqlangan umumiy summa olinadi.
+    total: sumBy(utilityItems, "amount") || money(reporterRecord?.supplyAmount)
   };
 
   const totalCollected = money(lor.collected + procedures.collected);

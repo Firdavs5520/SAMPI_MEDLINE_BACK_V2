@@ -265,6 +265,74 @@ test("reporter oylik hisobot va Excel navbatsiz kunlarda ham ishlaydi", async ()
   assert.ok((await res.arrayBuffer()).byteLength > 1000);
 });
 
+test("reporter: Ta'minot = svet+gaz+suv, Hamma harajat avtomatik hisoblanadi", async () => {
+  const ExcelJS = require("exceljs");
+  const ReporterDailyRecord = require("../models/ReporterDailyRecord");
+  const saved = await ctx.call("PUT", "/reporter/daily", {
+    token: tokens.reporter,
+    body: {
+      date: "2026-02-10",
+      electricityAmount: 30000,
+      gasAmount: 20000,
+      waterAmount: 10000,
+      medicineAmount: 100000,
+      stationeryAmount: 5000,
+      communicationAmount: 7000,
+      childrenAmount: 8000,
+      homeAmount: 9000,
+      debtAmount: 11000,
+      bossAmount: 500000,
+      terminalAmount: 40000,
+      // Hisoblanadigan maydonlar qo'lda yuborilsa ham e'tiborga olinmaydi.
+      supplyAmount: 1,
+      expenseAmount: 999
+    }
+  });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.equal(saved.data.manual.supplyAmount, 60000);
+  // 100 000 + 60 000 + 5 000 + 7 000 + 8 000 + 9 000 + 11 000 (boshliq va terminal kirmaydi)
+  assert.equal(saved.data.manual.expenseAmount, 200000);
+  const stored = await ReporterDailyRecord.findOne({ dateKey: "2026-02-10" }).lean();
+  assert.deepEqual([stored.supplyAmount, stored.expenseAmount], [60000, 200000]);
+
+  // Eski yozuv: Ta'minot bo'linmasdan kiritilgan bo'lsa saqlangan summa qoladi.
+  await ReporterDailyRecord.create({
+    dateKey: "2026-02-11",
+    reportDate: new Date("2026-02-10T19:00:00Z"),
+    supplyAmount: 70000,
+    medicineAmount: 30000,
+    expenseAmount: 5
+  });
+  const legacy = await ctx.call("GET", "/reporter/daily?date=2026-02-11", { token: tokens.reporter });
+  assert.equal(legacy.data.manual.supplyAmount, 70000);
+  assert.equal(legacy.data.manual.expenseAmount, 100000);
+
+  const monthly = await ctx.call("GET", "/reporter/monthly?month=2026-02", { token: tokens.reporter });
+  assert.equal(monthly.data.totals.supplyAmount, 130000);
+  assert.equal(monthly.data.totals.expenseAmount, 300000);
+
+  const res = await fetch(`${ctx.base}/reporter/monthly/export?month=2026-02`, {
+    headers: { Authorization: `Bearer ${tokens.reporter}` }
+  });
+  assert.equal(res.status, 200);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await res.arrayBuffer()));
+  const sheet = workbook.worksheets.find((item) => item.name === "Fevral");
+  assert.ok(sheet, workbook.worksheets.map((item) => item.name).join(","));
+  const headers = sheet.getRow(1).values.slice(1);
+  const col = (name) => headers.indexOf(name) + 1;
+  assert.ok(col("Hamma harajat") > 0 && col("Ta'minot") > 0, headers.join(","));
+  assert.ok(!headers.includes("Harajat") && !headers.includes("Kunlik xarajat"));
+  const day10 = sheet.getRow(11);
+  assert.equal(day10.getCell(col("Ta'minot")).value, 60000);
+  const expenseCell = day10.getCell(col("Hamma harajat")).value;
+  assert.equal(expenseCell.result, 200000);
+  assert.match(expenseCell.formula, /^SUM\(/);
+  const totalRow = sheet.getRow(sheet.rowCount);
+  assert.equal(totalRow.getCell(1).value, "Jami");
+  assert.equal(totalRow.getCell(col("Hamma harajat")).value.result, 300000);
+});
+
 test("reporter noto'g'ri oyni rad etadi", async () => {
   const res = await ctx.call("GET", "/reporter/monthly?month=2026-13", { token: tokens.reporter });
   assert.equal(res.status, 400);

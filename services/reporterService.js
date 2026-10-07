@@ -25,7 +25,7 @@ const AMOUNT_FIELDS = [
 ];
 
 const AMOUNT_LABELS = {
-  expenseAmount: "Harajat",
+  expenseAmount: "Hamma harajat",
   medicineAmount: "Dori",
   supplyAmount: "Ta'minot",
   stationeryAmount: "Kanstovar",
@@ -40,6 +40,34 @@ const AMOUNT_LABELS = {
   electricityAmount: "Svet",
   gasAmount: "Gaz",
   waterAmount: "Suv"
+};
+
+// Hisoblanadigan maydonlar (qo'lda kiritilmaydi):
+//   Ta'minot = svet + gaz + suv
+//   Hamma harajat = dori + ta'minot + kanstovar + aloqa + farzandlarga + uy uchun + qarz
+const UTILITY_FIELDS = ["electricityAmount", "gasAmount", "waterAmount"];
+const EXPENSE_PART_FIELDS = [
+  "medicineAmount",
+  "supplyAmount",
+  "stationeryAmount",
+  "communicationAmount",
+  "childrenAmount",
+  "homeAmount",
+  "debtAmount"
+];
+const COMPUTED_FIELDS = ["supplyAmount", "expenseAmount"];
+
+const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+
+// Eski yozuvlarda Ta'minot svet/gaz/suvga bo'linmasdan bitta summa bo'lib kiritilgan:
+// bo'linma bo'lmasa saqlangan summa ishlatiladi.
+const applyComputedAmounts = (manual, record = null) => {
+  const utilities = UTILITY_FIELDS.reduce((sum, field) => sum + Number(manual[field] || 0), 0);
+  manual.supplyAmount = roundMoney(utilities > 0 ? utilities : record?.supplyAmount);
+  manual.expenseAmount = roundMoney(
+    EXPENSE_PART_FIELDS.reduce((sum, field) => sum + Number(manual[field] || 0), 0)
+  );
+  return manual;
 };
 
 const MONTH_LABELS = [
@@ -59,29 +87,68 @@ const MONTH_LABELS = [
 
 const EXCEL_TEMPLATE_COLUMNS = [
   { header: "Kun", key: "date", width: 10 },
-  { header: "Lor soni", key: "lorClientsCount", width: 10 },
-  { header: "Lor summa", key: "lorPaidAmount", width: 14 },
-  { header: "50%", key: "lorHalfPaidAmount", width: 14 },
-  { header: "Protsedura soni", key: "procedureCount", width: 16 },
-  { header: "Protsedura summa", key: "procedurePaidAmount", width: 18 },
-  { header: "50% + Protsedura summa", key: "autoIncomeTotal", width: 24 },
-  { header: "Kunlik xarajat", key: "expenseAmount", width: 15 },
+  { header: "Lor soni", key: "lorClientsCount", width: 10, value: (row) => row.cashier.lor.count },
+  { header: "Lor summa", key: "lorPaidAmount", width: 14, value: (row) => row.cashier.lor.paidAmount },
+  {
+    header: "50%",
+    key: "lorHalfPaidAmount",
+    width: 14,
+    value: (row) => row.cashier.lor.halfPaidAmount,
+    formula: (c, r) => `IF(${c("lorPaidAmount")}${r}="","",${c("lorPaidAmount")}${r}/2)`
+  },
+  {
+    header: "Protsedura soni",
+    key: "procedureCount",
+    width: 16,
+    value: (row) => row.cashier.procedure.proceduresCount
+  },
+  {
+    header: "Protsedura summa",
+    key: "procedurePaidAmount",
+    width: 18,
+    value: (row) => row.cashier.procedure.paidAmount
+  },
+  {
+    header: "50% + Protsedura summa",
+    key: "autoIncomeTotal",
+    width: 24,
+    value: (row) => row.cashier.lor.halfPaidAmount + row.cashier.procedure.paidAmount,
+    formula: (c, r) => `SUM(${c("lorHalfPaidAmount")}${r},${c("procedurePaidAmount")}${r})`
+  },
   { header: "Dori", key: "medicineAmount", width: 13 },
+  { header: "Svet", key: "electricityAmount", width: 12 },
+  { header: "Gaz", key: "gasAmount", width: 12 },
+  { header: "Suv", key: "waterAmount", width: 12 },
   { header: "Ta'minot", key: "supplyAmount", width: 13 },
   { header: "Kanstovar", key: "stationeryAmount", width: 13 },
   { header: "Aloqa", key: "communicationAmount", width: 13 },
   { header: "Farzandlarga", key: "childrenAmount", width: 15 },
   { header: "Uy uchun", key: "homeAmount", width: 13 },
+  { header: "Qarz", key: "debtAmount", width: 12 },
+  {
+    header: "Hamma harajat",
+    key: "expenseAmount",
+    width: 16,
+    formula: (c, r) =>
+      `SUM(${c("medicineAmount")}${r},${c("supplyAmount")}${r},${c("stationeryAmount")}${r}:${c("debtAmount")}${r})`
+  },
   { header: "Boshliq uchun", key: "bossAmount", width: 16 },
   { header: "Terminal summa", key: "terminalAmount", width: 16 },
   { header: "O'tkazilgan", key: "transferAmount", width: 16 },
-  { header: "Qarz", key: "debtAmount", width: 12 },
-  { header: "Jami harajat", key: "expenseTotal", width: 15 },
-  { header: "Click", key: "clickAmount", width: 13 },
-  { header: "Svet", key: "electricityAmount", width: 12 },
-  { header: "Gaz", key: "gasAmount", width: 12 },
-  { header: "Suv", key: "waterAmount", width: 12 }
+  { header: "Click", key: "clickAmount", width: 13 }
 ];
+
+const excelColumnLetter = (key) => {
+  let index = EXCEL_TEMPLATE_COLUMNS.findIndex((column) => column.key === key) + 1;
+  if (index <= 0) throw new Error(`Excel ustuni topilmadi: ${key}`);
+  let letter = "";
+  while (index > 0) {
+    const rest = (index - 1) % 26;
+    letter = String.fromCharCode(65 + rest) + letter;
+    index = Math.floor((index - 1) / 26);
+  }
+  return letter;
+};
 
 const emptyCashierStats = () => ({
   count: 0,
@@ -259,6 +326,7 @@ const normalizeManualRecord = (record) => {
     manual[field] = Number(record[field] || 0);
   }
 
+  applyComputedAmounts(manual, record);
   manual.note = String(record.note || "").trim();
   return manual;
 };
@@ -524,10 +592,18 @@ const updateDailyRecord = async ({ payload, user }) => {
   };
 
   for (const field of AMOUNT_FIELDS) {
+    if (COMPUTED_FIELDS.includes(field)) continue;
     if (Object.prototype.hasOwnProperty.call(payload || {}, field)) {
       $set[field] = normalizeAmount(payload[field], AMOUNT_LABELS[field]);
     }
   }
+
+  // Ta'minot va Hamma harajat bazada ham yangilanadi (boshqa hisobotlar o'qiganda mos bo'lsin).
+  const existing = await ReporterDailyRecord.findOne({ dateKey }).lean();
+  const merged = { ...emptyManualAmounts(), ...(existing || {}), ...$set };
+  const computed = applyComputedAmounts(merged, existing);
+  $set.supplyAmount = computed.supplyAmount;
+  $set.expenseAmount = computed.expenseAmount;
 
   if (Object.prototype.hasOwnProperty.call(payload || {}, "note")) {
     $set.note = String(payload.note || "").trim().slice(0, 500);
@@ -612,9 +688,6 @@ const blankIfZero = (value) => {
   return number > 0 ? number : null;
 };
 
-const sumValues = (...values) =>
-  values.reduce((total, value) => total + Number(value || 0), 0);
-
 const formatDateKeyForExcel = (dateKey) => {
   const { year, month, day } = parseDateParts(dateKey);
   return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${String(
@@ -635,7 +708,7 @@ const applyTemplateSheetStyle = (sheet, totalRowNumber) => {
   };
 
   sheet.views = [{ state: "frozen", ySplit: 1, showGridLines: false }];
-  sheet.autoFilter = "A1:W1";
+  sheet.autoFilter = `A1:${excelColumnLetter(EXCEL_TEMPLATE_COLUMNS[EXCEL_TEMPLATE_COLUMNS.length - 1].key)}1`;
   sheet.properties.defaultRowHeight = 18;
 
   const headerRow = sheet.getRow(1);
@@ -697,169 +770,33 @@ const addTemplateMonthSheet = (workbook, report, monthNumber) => {
     width: column.width
   }));
 
+  const cellValue = (column, row, excelRowNumber) => {
+    const raw = column.value ? column.value(row) : row.manual[column.key];
+    const result = blankIfZero(raw);
+    return column.formula
+      ? { formula: column.formula(excelColumnLetter, excelRowNumber), result }
+      : result;
+  };
+
   report.rows.forEach((row, index) => {
     const excelRowNumber = index + 2;
-    const lorPaidAmount = row.cashier.lor.paidAmount;
-    const lorHalfPaidAmount = row.cashier.lor.halfPaidAmount;
-    const procedurePaidAmount = row.cashier.procedure.paidAmount;
-    const autoIncomeTotal = lorHalfPaidAmount + procedurePaidAmount;
-    const expenseTotal = sumValues(
-      row.manual.expenseAmount,
-      row.manual.medicineAmount,
-      row.manual.supplyAmount,
-      row.manual.stationeryAmount,
-      row.manual.communicationAmount,
-      row.manual.childrenAmount,
-      row.manual.homeAmount,
-      row.manual.bossAmount,
-      row.manual.debtAmount,
-      row.manual.electricityAmount,
-      row.manual.gasAmount,
-      row.manual.waterAmount
-    );
-
-    sheet.addRow({
-      date: formatDateKeyForExcel(row.date),
-      lorClientsCount: blankIfZero(row.cashier.lor.count),
-      lorPaidAmount: blankIfZero(lorPaidAmount),
-      lorHalfPaidAmount: {
-        formula: `IF(C${excelRowNumber}="","",C${excelRowNumber}/2)`,
-        result: blankIfZero(lorHalfPaidAmount)
-      },
-      procedureCount: blankIfZero(row.cashier.procedure.proceduresCount),
-      procedurePaidAmount: blankIfZero(procedurePaidAmount),
-      autoIncomeTotal: {
-        formula: `IF(AND(D${excelRowNumber}="",F${excelRowNumber}=""),"",D${excelRowNumber}+F${excelRowNumber})`,
-        result: blankIfZero(autoIncomeTotal)
-      },
-      expenseAmount: blankIfZero(row.manual.expenseAmount),
-      medicineAmount: blankIfZero(row.manual.medicineAmount),
-      supplyAmount: blankIfZero(row.manual.supplyAmount),
-      stationeryAmount: blankIfZero(row.manual.stationeryAmount),
-      communicationAmount: blankIfZero(row.manual.communicationAmount),
-      childrenAmount: blankIfZero(row.manual.childrenAmount),
-      homeAmount: blankIfZero(row.manual.homeAmount),
-      bossAmount: blankIfZero(row.manual.bossAmount),
-      terminalAmount: blankIfZero(row.manual.terminalAmount),
-      transferAmount: blankIfZero(row.manual.transferAmount),
-      debtAmount: blankIfZero(row.manual.debtAmount),
-      expenseTotal: {
-        formula: `IF(COUNTA(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber},U${excelRowNumber}:W${excelRowNumber})=0,"",SUM(H${excelRowNumber}:O${excelRowNumber},R${excelRowNumber},U${excelRowNumber}:W${excelRowNumber}))`,
-        result: blankIfZero(expenseTotal)
-      },
-      clickAmount: blankIfZero(row.manual.clickAmount),
-      electricityAmount: blankIfZero(row.manual.electricityAmount),
-      gasAmount: blankIfZero(row.manual.gasAmount),
-      waterAmount: blankIfZero(row.manual.waterAmount)
-    });
+    const values = { date: formatDateKeyForExcel(row.date) };
+    for (const column of EXCEL_TEMPLATE_COLUMNS.slice(1)) {
+      values[column.key] = cellValue(column, row, excelRowNumber);
+    }
+    sheet.addRow(values);
   });
 
   const totalRowNumber = report.rows.length + 2;
-  const totalExpense = sumValues(
-    report.totals.expenseAmount,
-    report.totals.medicineAmount,
-    report.totals.supplyAmount,
-    report.totals.stationeryAmount,
-    report.totals.communicationAmount,
-    report.totals.childrenAmount,
-    report.totals.homeAmount,
-    report.totals.bossAmount,
-    report.totals.debtAmount,
-    report.totals.electricityAmount,
-    report.totals.gasAmount,
-    report.totals.waterAmount
-  );
-  const totalRowValues = {
-    date: "Jami",
-    lorClientsCount: {
-      formula: `SUM(B2:B${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.lorClientsCount)
-    },
-    lorPaidAmount: {
-      formula: `SUM(C2:C${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.lorPaidAmount)
-    },
-    lorHalfPaidAmount: {
-      formula: `SUM(D2:D${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.lorHalfPaidAmount)
-    },
-    procedureCount: {
-      formula: `SUM(E2:E${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.procedureCount)
-    },
-    procedurePaidAmount: {
-      formula: `SUM(F2:F${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.procedurePaidAmount)
-    },
-    autoIncomeTotal: {
-      formula: `SUM(G2:G${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.autoIncomeTotal)
-    },
-    expenseAmount: {
-      formula: `SUM(H2:H${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.expenseAmount)
-    },
-    medicineAmount: {
-      formula: `SUM(I2:I${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.medicineAmount)
-    },
-    supplyAmount: {
-      formula: `SUM(J2:J${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.supplyAmount)
-    },
-    stationeryAmount: {
-      formula: `SUM(K2:K${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.stationeryAmount)
-    },
-    communicationAmount: {
-      formula: `SUM(L2:L${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.communicationAmount)
-    },
-    childrenAmount: {
-      formula: `SUM(M2:M${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.childrenAmount)
-    },
-    homeAmount: {
-      formula: `SUM(N2:N${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.homeAmount)
-    },
-    bossAmount: {
-      formula: `SUM(O2:O${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.bossAmount)
-    },
-    terminalAmount: {
-      formula: `SUM(P2:P${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.terminalAmount)
-    },
-    transferAmount: {
-      formula: `SUM(Q2:Q${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.transferAmount)
-    },
-    debtAmount: {
-      formula: `SUM(R2:R${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.debtAmount)
-    },
-    expenseTotal: {
-      formula: `SUM(S2:S${totalRowNumber - 1})`,
-      result: blankIfZero(totalExpense)
-    },
-    clickAmount: {
-      formula: `SUM(T2:T${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.clickAmount)
-    },
-    electricityAmount: {
-      formula: `SUM(U2:U${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.electricityAmount)
-    },
-    gasAmount: {
-      formula: `SUM(V2:V${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.gasAmount)
-    },
-    waterAmount: {
-      formula: `SUM(W2:W${totalRowNumber - 1})`,
-      result: blankIfZero(report.totals.waterAmount)
-    }
-  };
+  const lastDataRow = totalRowNumber - 1;
+  const totalRowValues = { date: "Jami" };
+  for (const column of EXCEL_TEMPLATE_COLUMNS.slice(1)) {
+    const letter = excelColumnLetter(column.key);
+    totalRowValues[column.key] = {
+      formula: `SUM(${letter}2:${letter}${lastDataRow})`,
+      result: blankIfZero(report.totals[column.key])
+    };
+  }
   sheet.addRow(totalRowValues);
   applyTemplateSheetStyle(sheet, totalRowNumber);
 };
@@ -884,6 +821,8 @@ const buildMonthlyWorkbook = async ({ month }) => {
 
 module.exports = {
   AMOUNT_FIELDS,
+  UTILITY_FIELDS,
+  COMPUTED_FIELDS,
   AMOUNT_LABELS,
   MONTH_LABELS,
   getMonthRange,
