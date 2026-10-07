@@ -4,9 +4,37 @@ const { MongoMemoryReplSet } = require("mongodb-memory-server");
 const mongoose = require("mongoose");
 
 const PASSWORD = "Test1234";
+const TASHKENT_OFFSET_MS = 5 * 60 * 60 * 1000;
+
+// Kassa smenasi 08:00-02:00 (Toshkent). Testlar tunda (02:00-08:00) ishga tushsa, "hozir"
+// yaratilgan yozuvlar hech qaysi smenaga tushmay, smena hisobotlari 0 qaytarardi. Shuning
+// uchun test jarayonida soat bugungi Toshkent 12:00 ga suriladi (soat yurishda davom etadi).
+// Server ham shu jarayonda ishlaydi, demak u ham xuddi shu "hozir"ni ko'radi.
+const useDaytimeClock = () => {
+  const RealDate = Date;
+  const realNow = RealDate.now();
+  const tashkentDay = new RealDate(realNow + TASHKENT_OFFSET_MS).toISOString().slice(0, 10);
+  const middayUtc = RealDate.parse(`${tashkentDay}T12:00:00.000Z`) - TASHKENT_OFFSET_MS;
+  const offset = middayUtc - realNow;
+
+  // Nomi "Date" bo'lishi shart: mongoose sxemadagi `type: Date` ni funksiya nomidan taniydi.
+  const DaytimeDate = class Date extends RealDate {
+    constructor(...args) {
+      if (args.length === 0) super(RealDate.now() + offset);
+      else super(...args);
+    }
+
+    static now() {
+      return RealDate.now() + offset;
+    }
+  };
+
+  globalThis.Date = DaytimeDate;
+};
 
 const startTestServer = async () => {
   const replSet = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  useDaytimeClock();
   process.env.NODE_ENV = "test";
   process.env.MONGO_URI = replSet.getUri("sampi_test");
   process.env.JWT_SECRET = "test_secret";
