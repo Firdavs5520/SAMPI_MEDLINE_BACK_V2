@@ -32,7 +32,8 @@ const getLorQueue = async ({ date, lorIdentity = "lor1", limit = DEFAULT_LIMIT }
     date: safeDateString,
     generatedAt: now.toISOString(),
     lastChangedAt,
-    announcementKey: current ? `${current.id}:${current.calledAt || ""}` : "",
+    // Shifokor o'zi ochgan raqamda bemor allaqachon xonada: TV ovozli chaqirmaydi.
+    announcementKey: current && !current.walkIn ? `${current.id}:${current.calledAt || ""}` : "",
     totalActive: current ? 1 : 0,
     limit: safeLimit,
     shift: {

@@ -172,7 +172,8 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
     minutesSinceCreated: getMinutesSince(createdAt, now),
     minutesSinceCalled: getMinutesSince(calledAt, now),
     checkRef: row.checkRef ? String(row.checkRef) : "",
-    checkCode: row.checkCode || ""
+    checkCode: row.checkCode || "",
+    walkIn: Boolean(row.walkIn)
   };
 
   if (!includePrivate) {
@@ -181,7 +182,8 @@ const serializeTicket = (ticket, { includePrivate = true, now = new Date() } = {
       queueCode: base.queueCode,
       calledAt: base.calledAt,
       createdAt: base.createdAt,
-      minutesSinceCalled: base.minutesSinceCalled
+      minutesSinceCalled: base.minutesSinceCalled,
+      walkIn: base.walkIn
     };
   }
 
@@ -628,6 +630,72 @@ const callTicket = async ({
   }
 };
 
+// Qayta kelgan bemor shifokor xonasida bo'lsa: kassadan raqam kutmasdan shifokor o'zi
+// yangi raqam ochadi va bemor darhol qabulda bo'ladi (TV ovozli chaqirmaydi).
+const admitWalkIn = async ({ user, lorIdentity = "lor1", specialistId, specialistName } = {}) => {
+  assertLorUser(user);
+  const normalizedLorIdentity = normalizeLorIdentity(lorIdentity);
+  const doctorName = normalizeDoctorName(specialistName);
+  const { safeDateString } = await getTodayShiftRange();
+  await ensureQueueTicketIndexesReady();
+
+  const existingCurrent = await LorQueueTicket.findOne({
+    shiftDate: { $in: getInProgressShiftDates(safeDateString) },
+    lorIdentity: normalizedLorIdentity,
+    status: "in_progress"
+  }).lean();
+  if (existingCurrent) {
+    throw new AppError(
+      `Avval ${formatQueueCode(existingCurrent.queueCode)} raqamli bemorni yakunlang`,
+      400
+    );
+  }
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const queueNumber = await reserveNextQueueNumber({
+      shiftDate: safeDateString,
+      lorIdentity: normalizedLorIdentity,
+      resync: attempt > 0
+    });
+    const now = new Date();
+    const actor = { userId: user._id, role: user.role, name: user.name };
+
+    try {
+      const ticket = await LorQueueTicket.create({
+        queueCode: formatQueueCode(queueNumber),
+        shiftDate: safeDateString,
+        lorIdentity: normalizedLorIdentity,
+        walkIn: true,
+        status: "in_progress",
+        createdBy: actor,
+        calledBy: actor,
+        calledAt: now,
+        doctor: {
+          ...(specialistId ? { specialistId } : {}),
+          name: doctorName
+        }
+      });
+
+      notifyQueueChanged({
+        shiftDate: safeDateString,
+        lorIdentity: normalizedLorIdentity,
+        action: "called",
+        ticket
+      });
+
+      return serializeTicket(ticket);
+    } catch (error) {
+      if (!isDuplicateKeyError(error)) throw error;
+      // Shu orada boshqa bemor qabulga olingan bo'lsa takrorlanmaydi.
+      if (error?.keyPattern?.status) {
+        throw new AppError("Avval hozirgi LOR bemorni yakunlang", 400);
+      }
+    }
+  }
+
+  throw new AppError("LOR navbat raqamini yaratib bo'lmadi", 500);
+};
+
 const cancelTicket = async ({
   user,
   ticketId,
@@ -799,6 +867,7 @@ const getCurrentTicketForTv = async ({ date, lorIdentity = "lor1", limit = 16 } 
 
 module.exports = {
   issueTicket,
+  admitWalkIn,
   getIssueStatus,
   getLorTickets,
   callTicket,

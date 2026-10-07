@@ -666,6 +666,9 @@ const callLorQueueTicket = async ({
     specialistName
   });
 
+const admitLorWalkIn = async ({ user, lorIdentity, specialistId, specialistName }) =>
+  lorQueueService.admitWalkIn({ user, lorIdentity, specialistId, specialistName });
+
 const cancelLorQueueTicket = async ({ user, ticketId, lorIdentity, reason, note }) =>
   lorQueueService.cancelTicket({ user, ticketId, lorIdentity, reason, note });
 
@@ -1249,6 +1252,7 @@ module.exports = {
   getMyChecks,
   getLorQueueTickets,
   callLorQueueTicket,
+  admitLorWalkIn,
   cancelLorQueueTicket,
   getRoleSpecialists,
   createRoleSpecialist,

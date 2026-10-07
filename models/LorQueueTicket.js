@@ -20,6 +20,11 @@ const lorQueueTicketSchema = new mongoose.Schema(
       default: "lor1",
       index: true
     },
+    // Kassasiz, shifokorning o'zi ochgan raqam: bemor allaqachon xonada, TV chaqirmaydi.
+    walkIn: {
+      type: Boolean,
+      default: false
+    },
     status: {
       type: String,
       enum: ["waiting", "in_progress", "completed", "cancelled"],
@@ -68,7 +73,8 @@ const lorQueueTicketSchema = new mongoose.Schema(
       },
       role: {
         type: String,
-        enum: ["cashier"],
+        // lor: qayta kelgan bemor uchun shifokorning o'zi ochgan raqam (walkIn).
+        enum: ["cashier", "lor"],
         required: true
       },
       name: {

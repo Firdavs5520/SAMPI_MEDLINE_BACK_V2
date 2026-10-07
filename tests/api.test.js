@@ -380,6 +380,40 @@ test("LOR: kassir raqam chiqaradi, LOR chaqiradi va chek yaratadi", async () => 
   assert.equal(checkout.data.check.lorQueue.queueCode, "01");
 });
 
+test("LOR: qayta kelgan bemorni shifokor kassasiz qabul qiladi (TV chaqirmaydi)", async () => {
+  const body = { lorIdentity: "lor1", specialistId: fixtures.lorDoctor._id, specialistName: "Dr. Karimov" };
+  assert.equal(
+    (await ctx.call("POST", "/usage/lor-queue-tickets/walk-in", { token: tokens.cashier, body })).status,
+    403
+  );
+
+  const admitted = await ctx.call("POST", "/usage/lor-queue-tickets/walk-in", { token: tokens.lor, body });
+  assert.equal(admitted.status, 201, JSON.stringify(admitted.body));
+  assert.equal(admitted.data.status, "in_progress");
+  assert.equal(admitted.data.walkIn, true);
+
+  // Bir vaqtda ikkinchi bemor qabulda bo'la olmaydi.
+  const second = await ctx.call("POST", "/usage/lor-queue-tickets/walk-in", { token: tokens.lor, body });
+  assert.equal(second.status, 400);
+
+  const tv = await ctx.call("GET", "/tv/lor-queue?lorIdentity=lor1", { token: tokens.tv });
+  assert.equal(tv.data.current.queueCode, admitted.data.queueCode);
+  assert.equal(tv.data.announcementKey, "");
+
+  const checkout = await ctx.call("POST", "/usage/lor-checkout", {
+    token: tokens.lor,
+    body: {
+      services: [{ serviceId: fixtures.lorService._id, quantity: 1 }],
+      patient: { firstName: "Qayta", lastName: "Keldi" },
+      lorIdentity: "lor1",
+      specialistId: fixtures.lorDoctor._id,
+      queueTicketId: admitted.data.id
+    }
+  });
+  assert.equal(checkout.status, 201, JSON.stringify(checkout.body));
+  assert.equal(checkout.data.check.lorQueue.queueCode, admitted.data.queueCode);
+});
+
 test("LOR navbat: hisoblagich yo'qolsa ham raqam takrorlanmaydi, ketma-ket davom etadi", async () => {
   const issue = (key) =>
     ctx.call("POST", "/cashier/lor-queue-tickets", { token: tokens.cashier, body: { idempotencyKey: key } });
