@@ -272,6 +272,7 @@ test("reporter: Ta'minot = svet+gaz+suv, Hamma harajat avtomatik hisoblanadi", a
     token: tokens.reporter,
     body: {
       date: "2026-02-10",
+      dailyExpenseAmount: 150000,
       electricityAmount: 30000,
       gasAmount: 20000,
       waterAmount: 10000,
@@ -290,10 +291,10 @@ test("reporter: Ta'minot = svet+gaz+suv, Hamma harajat avtomatik hisoblanadi", a
   });
   assert.equal(saved.status, 200, JSON.stringify(saved.body));
   assert.equal(saved.data.manual.supplyAmount, 60000);
-  // 100 000 + 60 000 + 5 000 + 7 000 + 8 000 + 9 000 + 11 000 (boshliq va terminal kirmaydi)
-  assert.equal(saved.data.manual.expenseAmount, 200000);
+  // 150 000 + 100 000 + 60 000 + 5 000 + 7 000 + 8 000 + 9 000 + 11 000 (boshliq va terminal kirmaydi)
+  assert.equal(saved.data.manual.expenseAmount, 350000);
   const stored = await ReporterDailyRecord.findOne({ dateKey: "2026-02-10" }).lean();
-  assert.deepEqual([stored.supplyAmount, stored.expenseAmount], [60000, 200000]);
+  assert.deepEqual([stored.supplyAmount, stored.expenseAmount], [60000, 350000]);
 
   // Eski yozuv: Ta'minot bo'linmasdan kiritilgan bo'lsa saqlangan summa qoladi.
   await ReporterDailyRecord.create({
@@ -309,7 +310,8 @@ test("reporter: Ta'minot = svet+gaz+suv, Hamma harajat avtomatik hisoblanadi", a
 
   const monthly = await ctx.call("GET", "/reporter/monthly?month=2026-02", { token: tokens.reporter });
   assert.equal(monthly.data.totals.supplyAmount, 130000);
-  assert.equal(monthly.data.totals.expenseAmount, 300000);
+  assert.equal(monthly.data.totals.expenseAmount, 450000);
+  assert.equal(monthly.data.totals.dailyExpenseAmount, 150000);
 
   const res = await fetch(`${ctx.base}/reporter/monthly/export?month=2026-02`, {
     headers: { Authorization: `Bearer ${tokens.reporter}` }
@@ -326,11 +328,12 @@ test("reporter: Ta'minot = svet+gaz+suv, Hamma harajat avtomatik hisoblanadi", a
   const day10 = sheet.getRow(11);
   assert.equal(day10.getCell(col("Ta'minot")).value, 60000);
   const expenseCell = day10.getCell(col("Hamma harajat")).value;
-  assert.equal(expenseCell.result, 200000);
+  assert.equal(expenseCell.result, 350000);
+  assert.equal(day10.getCell(col("Kunlik harajat")).value, 150000);
   assert.match(expenseCell.formula, /^SUM\(/);
   const totalRow = sheet.getRow(sheet.rowCount);
   assert.equal(totalRow.getCell(1).value, "Jami");
-  assert.equal(totalRow.getCell(col("Hamma harajat")).value.result, 300000);
+  assert.equal(totalRow.getCell(col("Hamma harajat")).value.result, 450000);
 });
 
 test("reporter noto'g'ri oyni rad etadi", async () => {

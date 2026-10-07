@@ -19,6 +19,7 @@ const DEPARTMENT_LABELS = { lor: "LOR", nurse: "Hamshira", procedure: "Hamshira"
 const MONEY_FORMAT = "#,##0";
 // Hisobotchi summalari xulosada shu tartibda: avval xarajat qismlari, keyin Hamma harajat.
 const MANUAL_SUMMARY_ORDER = [
+  "dailyExpenseAmount",
   "medicineAmount",
   "electricityAmount",
   "gasAmount",
@@ -125,7 +126,7 @@ const buildSummaryRows = ({ monthLabel, report, entries, expenses, collections, 
   const entryAmount = entries.reduce((sum, entry) => sum + money(entry.amount), 0);
   const entryPaid = entries.reduce((sum, entry) => sum + money(entry.paidAmount), 0);
   const entryDebt = entries.reduce((sum, entry) => sum + money(entry.debtAmount), 0);
-  // Hamma harajat (dori, ta'minot, kanstovar, aloqa, farzandlarga, uy uchun, qarz) + boshliq summasi.
+  // Hamma harajat (kunlik harajat, dori, ta'minot, kanstovar, aloqa, farzandlarga, uy uchun, qarz) + boshliq summasi.
   const manualExpenseTotal = money(totals.expenseAmount) + money(totals.bossAmount);
 
   return [

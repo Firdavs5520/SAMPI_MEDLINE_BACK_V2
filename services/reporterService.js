@@ -8,6 +8,7 @@ const AppError = require("../utils/AppError");
 const TASHKENT_OFFSET_HOURS = 5;
 const AMOUNT_FIELDS = [
   "expenseAmount",
+  "dailyExpenseAmount",
   "medicineAmount",
   "supplyAmount",
   "stationeryAmount",
@@ -26,6 +27,7 @@ const AMOUNT_FIELDS = [
 
 const AMOUNT_LABELS = {
   expenseAmount: "Hamma harajat",
+  dailyExpenseAmount: "Kunlik harajat",
   medicineAmount: "Dori",
   supplyAmount: "Ta'minot",
   stationeryAmount: "Kanstovar",
@@ -44,9 +46,10 @@ const AMOUNT_LABELS = {
 
 // Hisoblanadigan maydonlar (qo'lda kiritilmaydi):
 //   Ta'minot = svet + gaz + suv
-//   Hamma harajat = dori + ta'minot + kanstovar + aloqa + farzandlarga + uy uchun + qarz
+//   Hamma harajat = kunlik harajat + dori + ta'minot + kanstovar + aloqa + farzandlarga + uy uchun + qarz
 const UTILITY_FIELDS = ["electricityAmount", "gasAmount", "waterAmount"];
 const EXPENSE_PART_FIELDS = [
+  "dailyExpenseAmount",
   "medicineAmount",
   "supplyAmount",
   "stationeryAmount",
@@ -115,6 +118,7 @@ const EXCEL_TEMPLATE_COLUMNS = [
     value: (row) => row.cashier.lor.halfPaidAmount + row.cashier.procedure.paidAmount,
     formula: (c, r) => `SUM(${c("lorHalfPaidAmount")}${r},${c("procedurePaidAmount")}${r})`
   },
+  { header: "Kunlik harajat", key: "dailyExpenseAmount", width: 16 },
   { header: "Dori", key: "medicineAmount", width: 13 },
   { header: "Svet", key: "electricityAmount", width: 12 },
   { header: "Gaz", key: "gasAmount", width: 12 },
@@ -130,7 +134,7 @@ const EXCEL_TEMPLATE_COLUMNS = [
     key: "expenseAmount",
     width: 16,
     formula: (c, r) =>
-      `SUM(${c("medicineAmount")}${r},${c("supplyAmount")}${r},${c("stationeryAmount")}${r}:${c("debtAmount")}${r})`
+      `SUM(${c("dailyExpenseAmount")}${r},${c("medicineAmount")}${r},${c("supplyAmount")}${r},${c("stationeryAmount")}${r}:${c("debtAmount")}${r})`
   },
   { header: "Boshliq uchun", key: "bossAmount", width: 16 },
   { header: "Terminal summa", key: "terminalAmount", width: 16 },

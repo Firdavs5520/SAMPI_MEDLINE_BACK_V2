@@ -50,6 +50,8 @@ const reporterDailyRecordSchema = new mongoose.Schema(
     transferAmount: amountField,
     clickAmount: amountField,
     debtAmount: amountField,
+    // Kunlik harajat: farrosh, kassir va boshqalarning kunlik puli.
+    dailyExpenseAmount: amountField,
     // Kommunal xarajatlar: hisobotchi kiritadi, kassadagi hisobchi sahifasida ham ko'rinadi.
     electricityAmount: amountField,
     gasAmount: amountField,
